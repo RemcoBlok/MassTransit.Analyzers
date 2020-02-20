@@ -64,7 +64,7 @@ namespace MassTransit.Analyzers
             }
 
             if (argumentSyntax.IsActivator(semanticModel, out var typeArgument) &&
-                HasMessageContract(typeArgument, semanticModel, out var messageContractType))
+                typeArgument.HasMessageContract(out var messageContractType))
             {
                 var dictionary = new Dictionary<AnonymousObjectCreationExpressionSyntax, ITypeSymbol>();
                 FindAnonymousTypesWithMessageContractsInTree(dictionary, anonymousObject, messageContractType);
@@ -91,8 +91,8 @@ namespace MassTransit.Analyzers
                 {
                     if (initializer.Expression is ImplicitArrayCreationExpressionSyntax implicitArrayCreationExpressionSyntax)
                     {
-                        if (IsImmutableArray(messageContractProperty.Type, out var messageContractPropertyTypeArgument) ||
-                            IsReadOnlyList(messageContractProperty.Type, out messageContractPropertyTypeArgument))
+                        if (messageContractProperty.Type.IsImmutableArray(out var messageContractPropertyTypeArgument) ||
+                            messageContractProperty.Type.IsReadOnlyList(out messageContractPropertyTypeArgument))
                         {
                             var expressions = implicitArrayCreationExpressionSyntax.Initializer.Expressions;
                             foreach (var expressionSyntax in expressions)
@@ -200,8 +200,8 @@ namespace MassTransit.Analyzers
         private static AnonymousObjectMemberDeclaratorSyntax CreateProperty(IPropertySymbol messageContractProperty)
         {
             ExpressionSyntax expression;
-            if (IsImmutableArray(messageContractProperty.Type, out var messageContractPropertyTypeArgument) ||
-                IsReadOnlyList(messageContractProperty.Type, out messageContractPropertyTypeArgument))
+            if (messageContractProperty.Type.IsImmutableArray(out var messageContractPropertyTypeArgument) ||
+                messageContractProperty.Type.IsReadOnlyList(out messageContractPropertyTypeArgument))
             {
                 expression = CreateImplicitArray(messageContractPropertyTypeArgument);
             }
@@ -209,7 +209,7 @@ namespace MassTransit.Analyzers
             {
                 expression = CreateAnonymousObject(messageContractProperty.Type);
             }
-            else if (IsNullable(messageContractProperty.Type, out var nullableTypeArgument))
+            else if (messageContractProperty.Type.IsNullable(out var nullableTypeArgument))
             {
                 expression = CreateDefaultNullable(nullableTypeArgument);
             }
@@ -258,129 +258,6 @@ namespace MassTransit.Analyzers
         private static DefaultExpressionSyntax CreateDefaultNullable(ITypeSymbol type)
         {
             return SyntaxFactory.DefaultExpression(SyntaxFactory.NullableType(SyntaxFactory.ParseTypeName(type.Name).WithAdditionalAnnotations(Simplifier.Annotation)));
-        }
-
-        private static bool HasMessageContract(TypeSyntax typeArgument, SemanticModel semanticModel, out ITypeSymbol messageContractType)
-        {
-            if (typeArgument is IdentifierNameSyntax identifierNameSyntax)
-            {
-                var identifierType = semanticModel.GetTypeInfo(identifierNameSyntax).Type;
-                if (identifierType.TypeKind == TypeKind.Interface)
-                {
-                    messageContractType = identifierType;
-                    return true;
-                }
-
-                if (identifierType.TypeKind == TypeKind.TypeParameter &&
-                    identifierType is ITypeParameterSymbol typeParameter &&
-                    typeParameter.ConstraintTypes.Length == 1 &&
-                    typeParameter.ConstraintTypes[0].TypeKind == TypeKind.Interface)
-                {
-                    messageContractType = typeParameter.ConstraintTypes[0];
-                    return true;
-                }
-            }
-            else if (typeArgument is GenericNameSyntax genericNameSyntax)
-            {
-                var genericType = semanticModel.GetTypeInfo(genericNameSyntax).Type;
-
-                if (IsImmutableArray(genericType, out messageContractType) ||
-                    IsReadOnlyList(genericType, out messageContractType) ||
-                    IsList(genericType, out messageContractType))
-                {
-                    if (messageContractType.TypeKind == TypeKind.Interface)
-                    {
-                        return true;
-                    }
-                }
-            }
-            else if (typeArgument is ArrayTypeSyntax arrayTypeSyntax)
-            {
-                messageContractType = semanticModel.GetTypeInfo(arrayTypeSyntax.ElementType).Type;
-                if (messageContractType.TypeKind == TypeKind.Interface)
-                {
-                    return true;
-                }
-            }
-            else if (typeArgument is QualifiedNameSyntax qualifiedNameSyntax)
-            {
-                messageContractType = semanticModel.GetTypeInfo(qualifiedNameSyntax).Type;
-                if (messageContractType.TypeKind == TypeKind.Interface)
-                {
-                    return true;
-                }
-            }
-
-            messageContractType = null;
-            return false;
-        }
-
-        private static bool IsImmutableArray(ITypeSymbol type, out ITypeSymbol typeArgument)
-        {
-            if (type.TypeKind == TypeKind.Struct &&
-                type.Name == "ImmutableArray" &&
-                type.ContainingNamespace.ToString() == "System.Collections.Immutable" &&
-                type is INamedTypeSymbol immutableArrayType &&
-                immutableArrayType.IsGenericType &&
-                immutableArrayType.TypeArguments.Length == 1)
-            {
-                typeArgument = immutableArrayType.TypeArguments[0];
-                return true;
-            }
-
-            typeArgument = null;
-            return false;
-        }
-
-        private static bool IsReadOnlyList(ITypeSymbol type, out ITypeSymbol typeArgument)
-        {
-            if (type.TypeKind == TypeKind.Interface &&
-                type.Name == "IReadOnlyList" &&
-                type.ContainingNamespace.ToString() == "System.Collections.Generic" &&
-                type is INamedTypeSymbol readOnlyListType &&
-                readOnlyListType.IsGenericType &&
-                readOnlyListType.TypeArguments.Length == 1)
-            {
-                typeArgument = readOnlyListType.TypeArguments[0];
-                return true;
-            }
-
-            typeArgument = null;
-            return false;
-        }
-
-        private static bool IsList(ITypeSymbol type, out ITypeSymbol typeArgument)
-        {
-            if (type.TypeKind == TypeKind.Class &&
-                type.Name == "List" &&
-                type.ContainingNamespace.ToString() == "System.Collections.Generic" &&
-                type is INamedTypeSymbol listType &&
-                listType.IsGenericType &&
-                listType.TypeArguments.Length == 1)
-            {
-                typeArgument = listType.TypeArguments[0];
-                return true;
-            }
-
-            typeArgument = null;
-            return false;
-        }
-
-        private static bool IsNullable(ITypeSymbol type, out ITypeSymbol typeArgument)
-        {
-            if (type.TypeKind == TypeKind.Struct &&
-                type.Name == "Nullable" &&
-                type.ContainingNamespace.Name == "System" &&
-                type is INamedTypeSymbol nullableType &&
-                nullableType.IsGenericType &&
-                nullableType.TypeArguments.Length == 1)
-            {
-                typeArgument = nullableType.TypeArguments[0];
-                return true;
-            }
-
-            typeArgument = null;
-            return false;
-        }
+        }        
     }
 }

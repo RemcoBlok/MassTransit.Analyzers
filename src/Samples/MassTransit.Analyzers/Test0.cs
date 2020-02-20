@@ -1,9 +1,71 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
+using System.Threading.Tasks;
 
-namespace Messages
+namespace MassTransit.Analyzers
 {
+
+    public interface OrderItem
+    {
+        Guid OrderId { get; }
+        string ItemNumber { get; }
+    }
+
+    public interface SubmitOrder
+    {
+        Guid OrderId { get; }
+        DateTime OrderDate { get; }
+        string OrderNumber { get; }
+        decimal OrderAmount { get; }
+        OrderItem[] OrderItems { get; }
+    }
+
+    public interface OrderSubmitted
+    {
+        string OrderId { get; }
+        DateTime OrderDate { get; }
+    }
+
+    public interface CheckOrderStatus
+    {
+        string OrderId { get; }
+    }
+
+    public interface OrderStatusResult
+    {
+        string OrderId { get; }
+        DateTime Timestamp { get; }
+        short StatusCode { get; }
+        string StatusText { get; }
+    }
+
+    public interface UpdateCustomerAddress
+    {
+        Guid CommandId { get; }
+        DateTime Timestamp { get; }
+        string CustomerId { get; }
+        string HouseNumber { get; }
+        string Street { get; }
+        string City { get; }
+        string State { get; }
+        string PostalCode { get; }
+    }
+
+    public interface OrderUpdated
+    {
+        Guid CorrelationId { get; }
+        DateTime Timestamp { get; }
+        Guid OrderId { get; }
+        //Customer Customer { get; }
+    }
+
+
+
+
+
+
     public interface ICommand
     {
         Guid CommandId { get; }
@@ -31,13 +93,6 @@ namespace Messages
         IReadOnlyList<IIdentification> Identifications { get; }
         IReadOnlyList<IIdentification> Documents { get; }
     }
-}
-
-namespace Messages
-{
-    using MassTransit;
-    using System.Linq;
-    using System.Threading.Tasks;
 
     public class AddressModel
     {
@@ -66,6 +121,14 @@ namespace Messages
         static async Task Main()
         {
             var busControl = Bus.Factory.CreateUsingInMemory(cfg => { });
+            
+            //var requestClient = busControl.CreateRequestClient<OrderRequest>(null);
+
+            //var request = requestClient.Create(new
+            //{
+            //});
+
+
             var sendEndpoint = await busControl.GetSendEndpoint(new Uri("queue:queue_name"));
             
             await sendEndpoint.Send<ICreateCommand>(new

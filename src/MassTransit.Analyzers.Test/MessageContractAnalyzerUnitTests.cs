@@ -158,6 +158,64 @@ namespace ConsoleApplication1
             VerifyCSharpDiagnostic(test);
         }
 
+
+        [TestMethod]
+        public void WhenCreateRequestTypesAreStructurallyCompatibleAndNoMissingProperties_ShouldHaveNoDiagnostics()
+        {
+            var test = Usings + MessageContracts + @"
+namespace ConsoleApplication1
+{        
+    class Program
+    {
+        static async Task Main()
+        {
+            var busControl = Bus.Factory.CreateUsingInMemory(cfg => { });
+            var requestClient = busControl.CreateRequestClient<ICreateCommand>(null);
+
+            var request = requestClient.Create(new
+            {
+                Name = string.Empty,
+                BillingAddress = new
+                {
+                    Street = string.Empty,
+                    Place = string.Empty
+                },
+                DeliveryAddress = new
+                {
+                    Street = string.Empty,
+                    Place = string.Empty
+                },
+                Identifications = new[] 
+                {
+                    new
+                    {
+                        Type = string.Empty,
+                        IssuingCountry = string.Empty,
+                        Number = string.Empty
+                    }
+                },
+                Documents = new[] 
+                {
+                    new
+                    {
+                        Type = string.Empty,
+                        IssuingCountry = string.Empty,
+                        Number = string.Empty
+                    }
+                },
+                CommandId = Guid.NewGuid(),
+                StreamId = Guid.NewGuid()
+            });
+        }
+    }
+}
+";
+
+            VerifyCSharpDiagnostic(test);
+        }
+
+
+
         [TestMethod]
         public void WhenReadOnlyListTypesAreStructurallyCompatibleAndNoMissingProperties_ShouldHaveNoDiagnostics()
         {

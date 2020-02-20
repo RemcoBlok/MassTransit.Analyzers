@@ -5,33 +5,32 @@ namespace MassTransit.Analyzers
 {
     public static class CommonExpressions
     {
-        public static bool IsActivator(this ArgumentSyntax argumentSyntax, SemanticModel semanticModel, out ITypeSymbol messageContractType)
+        public static bool IsActivator(this ArgumentSyntax argumentSyntax, SemanticModel semanticModel, out ITypeSymbol typeArgument)
         {
             if (argumentSyntax != null
                 && argumentSyntax.Parent is ArgumentListSyntax argumentListSyntax
                 && argumentListSyntax.Parent is InvocationExpressionSyntax invocationExpressionSyntax
                 && invocationExpressionSyntax.Expression is MemberAccessExpressionSyntax memberAccessExpressionSyntax
-                && memberAccessExpressionSyntax.Name is GenericNameSyntax genericNameSyntax
                 && semanticModel.GetSymbolInfo(memberAccessExpressionSyntax).Symbol is IMethodSymbol method
                 && method.Parameters[0].Type.SpecialType == SpecialType.System_Object)
             {
-                if (genericNameSyntax.TypeArgumentList.Arguments.Count == 1
-                    && method.TypeArguments.Length == 1
+                if (method.TypeArguments.Length == 1
                     && IsGenericInitializerMethod(method))
                 {
-                    return HasMessageContract(genericNameSyntax.TypeArgumentList.Arguments[0], semanticModel, out messageContractType);
+                    typeArgument = method.TypeArguments[0];
+                    return true;
                 }
 
                 if (method.ContainingType.IsGenericType
                     && method.ContainingType.TypeArguments.Length == 1
                     && IsInitializerMethod(method))
                 {
-                    messageContractType = method.ContainingType.TypeArguments[0];
+                    typeArgument = method.ContainingType.TypeArguments[0];
                     return true;
                 }
             }
 
-            messageContractType = null;
+            typeArgument = null;
             return false;
         }
 
@@ -52,63 +51,28 @@ namespace MassTransit.Analyzers
                    && method.Name == "Create" && method.ContainingType.Name == "IRequestClient";
         }
 
-        static bool HasMessageContract(TypeSyntax typeArgument, SemanticModel semanticModel, out ITypeSymbol messageContractType)
+        public static bool HasMessageContract(this ITypeSymbol typeArgument, out ITypeSymbol messageContractType)
         {
-            if (typeArgument is IdentifierNameSyntax identifierNameSyntax)
+            if (typeArgument.TypeKind == TypeKind.Interface)
             {
-                var identifierType = semanticModel.GetTypeInfo(identifierNameSyntax).Type;
-                if (identifierType.TypeKind == TypeKind.Interface)
-                {
-                    messageContractType = identifierType;
-                    return true;
-                }
+                messageContractType = typeArgument;
+                return true;
+            }
 
-                if (identifierType.TypeKind == TypeKind.TypeParameter &&
-                    identifierType is ITypeParameterSymbol typeParameter &&
-                    typeParameter.ConstraintTypes.Length == 1 &&
-                    typeParameter.ConstraintTypes[0].TypeKind == TypeKind.Interface)
-                {
-                    messageContractType = typeParameter.ConstraintTypes[0];
-                    return true;
-                }
-            }
-            else if (typeArgument is GenericNameSyntax genericNameSyntax)
+            if (typeArgument.TypeKind == TypeKind.TypeParameter &&
+                typeArgument is ITypeParameterSymbol typeParameter &&
+                typeParameter.ConstraintTypes.Length == 1 &&
+                typeParameter.ConstraintTypes[0].TypeKind == TypeKind.Interface)
             {
-                var genericType = semanticModel.GetTypeInfo(genericNameSyntax).Type;
-
-                if (IsImmutableArray(genericType, out messageContractType) ||
-                    IsReadOnlyList(genericType, out messageContractType) ||
-                    IsList(genericType, out messageContractType))
-                {
-                    if (messageContractType.TypeKind == TypeKind.Interface)
-                    {
-                        return true;
-                    }
-                }
-            }
-            else if (typeArgument is ArrayTypeSyntax arrayTypeSyntax)
-            {
-                messageContractType = semanticModel.GetTypeInfo(arrayTypeSyntax.ElementType).Type;
-                if (messageContractType.TypeKind == TypeKind.Interface)
-                {
-                    return true;
-                }
-            }
-            else if (typeArgument is QualifiedNameSyntax qualifiedNameSyntax)
-            {
-                messageContractType = semanticModel.GetTypeInfo(qualifiedNameSyntax).Type;
-                if (messageContractType.TypeKind == TypeKind.Interface)
-                {
-                    return true;
-                }
+                messageContractType = typeParameter.ConstraintTypes[0];
+                return true;
             }
 
             messageContractType = null;
             return false;
         }
-
-
-        static bool IsImmutableArray(ITypeSymbol type, out ITypeSymbol typeArgument)
+        
+        public static bool IsImmutableArray(this ITypeSymbol type, out ITypeSymbol typeArgument)
         {
             if (type.TypeKind == TypeKind.Struct &&
                 type.Name == "ImmutableArray" &&
@@ -125,7 +89,7 @@ namespace MassTransit.Analyzers
             return false;
         }
 
-        static bool IsReadOnlyList(ITypeSymbol type, out ITypeSymbol typeArgument)
+        public static bool IsReadOnlyList(this ITypeSymbol type, out ITypeSymbol typeArgument)
         {
             if (type.TypeKind == TypeKind.Interface &&
                 type.Name == "IReadOnlyList" &&
@@ -142,7 +106,7 @@ namespace MassTransit.Analyzers
             return false;
         }
 
-        private static bool IsList(ITypeSymbol type, out ITypeSymbol typeArgument)
+        public static bool IsList(this ITypeSymbol type, out ITypeSymbol typeArgument)
         {
             if (type.TypeKind == TypeKind.Class &&
                 type.Name == "List" &&
@@ -159,7 +123,7 @@ namespace MassTransit.Analyzers
             return false;
         }
 
-        private static bool IsNullable(ITypeSymbol type, out ITypeSymbol typeArgument)
+        public static bool IsNullable(this ITypeSymbol type, out ITypeSymbol typeArgument)
         {
             if (type.TypeKind == TypeKind.Struct &&
                 type.Name == "Nullable" &&
@@ -173,6 +137,19 @@ namespace MassTransit.Analyzers
             }
 
             typeArgument = null;
+            return false;
+        }
+
+        public static bool IsArray(this ITypeSymbol type, out ITypeSymbol elementType)
+        {
+            if (type.TypeKind == TypeKind.Array &&
+                type is IArrayTypeSymbol arrayTypeSymbol)
+            {
+                elementType = arrayTypeSymbol.ElementType;
+                return true;
+            }
+
+            elementType = null;
             return false;
         }
     }
