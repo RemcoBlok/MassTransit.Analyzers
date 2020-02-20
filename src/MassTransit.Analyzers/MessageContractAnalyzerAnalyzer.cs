@@ -98,7 +98,7 @@ namespace MassTransit.Analyzers.MessageContractAnalyzer
             }
         }
 
-        private static bool HasMessageContract(TypeSyntax typeArgument, SemanticModel semanticModel, out ITypeSymbol messageContractType)
+        static bool HasMessageContract(TypeSyntax typeArgument, SemanticModel semanticModel, out ITypeSymbol messageContractType)
         {
             if (typeArgument is IdentifierNameSyntax identifierNameSyntax)
             {
@@ -125,58 +125,25 @@ namespace MassTransit.Analyzers.MessageContractAnalyzer
                 if (IsImmutableArray(genericType, out messageContractType) ||
                     IsReadOnlyList(genericType, out messageContractType) ||
                     IsList(genericType, out messageContractType))
-                {
                     if (messageContractType.TypeKind == TypeKind.Interface)
-                    {
                         return true;
-                    }
-                }
             }
             else if (typeArgument is ArrayTypeSyntax arrayTypeSyntax)
             {
                 messageContractType = semanticModel.GetTypeInfo(arrayTypeSyntax.ElementType).Type;
-                if (messageContractType.TypeKind == TypeKind.Interface)
-                {
-                    return true;
-                }
+                if (messageContractType.TypeKind == TypeKind.Interface) return true;
             }
             else if (typeArgument is QualifiedNameSyntax qualifiedNameSyntax)
             {
                 messageContractType = semanticModel.GetTypeInfo(qualifiedNameSyntax).Type;
-                if (messageContractType.TypeKind == TypeKind.Interface)
-                {
-                    return true;
-                }
+                if (messageContractType.TypeKind == TypeKind.Interface) return true;
             }
 
             messageContractType = null;
             return false;
         }
 
-        private static bool IsActivator(ArgumentSyntax argumentSyntax, SemanticModel semanticModel, out TypeSyntax typeArgument)
-        {
-            if (argumentSyntax != null &&
-                argumentSyntax.Parent is ArgumentListSyntax argumentListSyntax &&
-                argumentListSyntax.Parent is InvocationExpressionSyntax invocationExpressionSyntax &&
-                invocationExpressionSyntax.Expression is MemberAccessExpressionSyntax memberAccessExpressionSyntax &&
-                memberAccessExpressionSyntax.Name is GenericNameSyntax genericNameSyntax &&
-                genericNameSyntax.TypeArgumentList.Arguments.Count == 1 &&
-                semanticModel.GetSymbolInfo(memberAccessExpressionSyntax).Symbol is IMethodSymbol method &&
-                method.TypeArguments.Length == 1 &&
-                method.Parameters[0].Type.SpecialType == SpecialType.System_Object &&
-                method.ContainingType.ContainingAssembly.Name == "MassTransit" &&
-                ((method.Name == "Publish" && method.ContainingType.Name == "IPublishEndpoint") ||
-                (method.Name == "Send" && method.ContainingType.Name == "ISendEndpoint")))
-            {
-                typeArgument = genericNameSyntax.TypeArgumentList.Arguments[0];
-                return true;
-            }
-
-            typeArgument = null;
-            return false;
-        }
-
-        private static bool IsImmutableArray(ITypeSymbol type, out ITypeSymbol typeArgument)
+        static bool IsImmutableArray(ITypeSymbol type, out ITypeSymbol typeArgument)
         {
             if (type.TypeKind == TypeKind.Struct &&
                 type.Name == "ImmutableArray" &&
@@ -193,7 +160,7 @@ namespace MassTransit.Analyzers.MessageContractAnalyzer
             return false;
         }
 
-        private static bool IsReadOnlyList(ITypeSymbol type, out ITypeSymbol typeArgument)
+        static bool IsReadOnlyList(ITypeSymbol type, out ITypeSymbol typeArgument)
         {
             if (type.TypeKind == TypeKind.Interface &&
                 type.Name == "IReadOnlyList" &&
@@ -210,7 +177,7 @@ namespace MassTransit.Analyzers.MessageContractAnalyzer
             return false;
         }
 
-        private static bool IsList(ITypeSymbol type, out ITypeSymbol typeArgument)
+        static bool IsList(ITypeSymbol type, out ITypeSymbol typeArgument)
         {
             if (type.TypeKind == TypeKind.Class &&
                 type.Name == "List" &&
@@ -227,7 +194,7 @@ namespace MassTransit.Analyzers.MessageContractAnalyzer
             return false;
         }
 
-        private static bool IsArray(ITypeSymbol type, out ITypeSymbol elementType)
+        static bool IsArray(ITypeSymbol type, out ITypeSymbol elementType)
         {
             if (type.TypeKind == TypeKind.Array &&
                 type is IArrayTypeSymbol arrayTypeSymbol)
@@ -240,12 +207,10 @@ namespace MassTransit.Analyzers.MessageContractAnalyzer
             return false;
         }
 
-        private static bool TypesAreStructurallyCompatible(ITypeSymbol messageType, ITypeSymbol messageContractType, string path, ICollection<string> incompatibleProperties)
+        static bool TypesAreStructurallyCompatible(ITypeSymbol messageType, ITypeSymbol messageContractType, string path,
+            ICollection<string> incompatibleProperties)
         {
-            if (SymbolEqualityComparer.Default.Equals(messageType, messageContractType))
-            {
-                return true;
-            }
+            if (SymbolEqualityComparer.Default.Equals(messageType, messageContractType)) return true;
 
             var messageContractProperties = GetMessageContractProperties(messageContractType);
             var messageProperties = messageType.GetMembers().OfType<IPropertySymbol>().ToList();
@@ -269,9 +234,7 @@ namespace MassTransit.Analyzers.MessageContractAnalyzer
                         {
                             if (!TypesAreStructurallyCompatible(messageProperty.Type, messageContractProperty.Type,
                                 Append(path, messageProperty.Name), incompatibleProperties))
-                            {
                                 return false;
-                            }
                         }
                         else
                         {
@@ -293,9 +256,7 @@ namespace MassTransit.Analyzers.MessageContractAnalyzer
                                 {
                                     if (!TypesAreStructurallyCompatible(messagePropertyTypeArgument, messageContractPropertyTypeArgument,
                                         Append(path, messageProperty.Name), incompatibleProperties))
-                                    {
                                         return false;
-                                    }
                                 }
                                 else
                                 {
@@ -321,7 +282,7 @@ namespace MassTransit.Analyzers.MessageContractAnalyzer
             return true;
         }
 
-        private static bool HasMissingProperties(ITypeSymbol messageType, ITypeSymbol messageContractType, string path, ICollection<string> missingProperties)
+        static bool HasMissingProperties(ITypeSymbol messageType, ITypeSymbol messageContractType, string path, ICollection<string> missingProperties)
         {
             var messageContractProperties = GetMessageContractProperties(messageContractType);
             var messageProperties = messageType.GetMembers().OfType<IPropertySymbol>().ToList();
@@ -338,22 +299,17 @@ namespace MassTransit.Analyzers.MessageContractAnalyzer
                     result = true;
                 }
                 else if (IsImmutableArray(messageContractProperty.Type, out var messageContractPropertyTypeArgument) ||
-                    IsReadOnlyList(messageContractProperty.Type, out messageContractPropertyTypeArgument))
+                         IsReadOnlyList(messageContractProperty.Type, out messageContractPropertyTypeArgument))
                 {
                     if (messageContractPropertyTypeArgument.TypeKind == TypeKind.Interface)
-                    {
                         if (IsImmutableArray(messageProperty.Type, out var messagePropertyTypeArgument) ||
                             IsReadOnlyList(messageProperty.Type, out messagePropertyTypeArgument) ||
                             IsArray(messageProperty.Type, out messagePropertyTypeArgument))
                         {
                             var hasMissingProperties = HasMissingProperties(messagePropertyTypeArgument, messageContractPropertyTypeArgument,
                                 Append(path, messageContractProperty.Name), missingProperties);
-                            if (hasMissingProperties)
-                            {
-                                result = true;
-                            }
+                            if (hasMissingProperties) result = true;
                         }
-                    }
                 }
                 else if (messageContractProperty.Type.TypeKind == TypeKind.Interface)
                 {
@@ -361,10 +317,7 @@ namespace MassTransit.Analyzers.MessageContractAnalyzer
                     {
                         var hasMissingProperties = HasMissingProperties(messageProperty.Type, messageContractProperty.Type,
                             Append(path, messageContractProperty.Name), missingProperties);
-                        if (hasMissingProperties)
-                        {
-                            result = true;
-                        }
+                        if (hasMissingProperties) result = true;
                     }
                 }
             }
@@ -372,25 +325,19 @@ namespace MassTransit.Analyzers.MessageContractAnalyzer
             return result;
         }
 
-        private static List<IPropertySymbol> GetMessageContractProperties(ITypeSymbol messageContractType)
+        static List<IPropertySymbol> GetMessageContractProperties(ITypeSymbol messageContractType)
         {
-            var messageContractTypes = new List<ITypeSymbol> { messageContractType };
+            var messageContractTypes = new List<ITypeSymbol> {messageContractType};
             messageContractTypes.AddRange(messageContractType.AllInterfaces);
 
             return messageContractTypes.SelectMany(i => i.GetMembers().OfType<IPropertySymbol>()).ToList();
         }
 
-        private static string Append(string path, string propertyName)
+        static string Append(string path, string propertyName)
         {
-            if (string.IsNullOrEmpty(path))
-            {
-                return propertyName;
-            }
+            if (string.IsNullOrEmpty(path)) return propertyName;
 
-            if (path.EndsWith(".", StringComparison.Ordinal))
-            {
-                return $"{path}{propertyName}";
-            }
+            if (path.EndsWith(".", StringComparison.Ordinal)) return $"{path}{propertyName}";
 
             return $"{path}.{propertyName}";
         }
