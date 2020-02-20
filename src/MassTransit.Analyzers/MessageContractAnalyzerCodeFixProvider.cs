@@ -5,14 +5,14 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CodeActions;
+using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Simplification;
 
-namespace MassTransit.Analyzers.MessageContractAnalyzer
+namespace MassTransit.Analyzers
 {
     [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(MessageContractAnalyzerCodeFixProvider)), Shared]
     public class MessageContractAnalyzerCodeFixProvider : CodeFixProvider
@@ -63,7 +63,7 @@ namespace MassTransit.Analyzers.MessageContractAnalyzer
                 }
             }
 
-            if (IsActivator(argumentSyntax, semanticModel, out var typeArgument) &&
+            if (argumentSyntax.IsActivator(semanticModel, out var typeArgument) &&
                 HasMessageContract(typeArgument, semanticModel, out var messageContractType))
             {
                 var dictionary = new Dictionary<AnonymousObjectCreationExpressionSyntax, ITypeSymbol>();
@@ -312,29 +312,6 @@ namespace MassTransit.Analyzers.MessageContractAnalyzer
             }
 
             messageContractType = null;
-            return false;
-        }
-
-        private static bool IsActivator(ArgumentSyntax argumentSyntax, SemanticModel semanticModel, out TypeSyntax typeArgument)
-        {
-            if (argumentSyntax != null &&
-                argumentSyntax.Parent is ArgumentListSyntax argumentListSyntax &&
-                argumentListSyntax.Parent is InvocationExpressionSyntax invocationExpressionSyntax &&
-                invocationExpressionSyntax.Expression is MemberAccessExpressionSyntax memberAccessExpressionSyntax &&
-                memberAccessExpressionSyntax.Name is GenericNameSyntax genericNameSyntax &&
-                genericNameSyntax.TypeArgumentList.Arguments.Count == 1 &&
-                semanticModel.GetSymbolInfo(memberAccessExpressionSyntax).Symbol is IMethodSymbol method &&
-                method.TypeArguments.Length == 1 &&
-                method.Parameters[0].Type.SpecialType == SpecialType.System_Object &&
-                method.ContainingType.ContainingAssembly.Name == "MassTransit" &&
-                ((method.Name == "Publish" && method.ContainingType.Name == "IPublishEndpoint") || 
-                (method.Name == "Send" && method.ContainingType.Name == "ISendEndpoint")))
-            {
-                typeArgument = genericNameSyntax.TypeArgumentList.Arguments[0];
-                return true;
-            }
-
-            typeArgument = null;
             return false;
         }
 
