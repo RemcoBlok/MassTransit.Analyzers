@@ -31,7 +31,6 @@ namespace MassTransit.Analyzers
         {
             var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
 
-            // TODO: Replace the following code with your own analysis, generating a CodeAction for each fix to suggest
             var diagnostic = context.Diagnostics.First();
             var diagnosticSpan = diagnostic.Location.SourceSpan;
 
@@ -53,17 +52,8 @@ namespace MassTransit.Analyzers
             var root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
             var semanticModel = await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
 
-            var argumentSyntax = anonymousObject.Parent as ArgumentSyntax;
-            if (argumentSyntax == null)
-            {
-                if (anonymousObject.Parent is InitializerExpressionSyntax initializerExpressionSyntax &&
-                    initializerExpressionSyntax.Parent is ImplicitArrayCreationExpressionSyntax implicitArrayCreationExpressionSyntax)
-                {
-                    argumentSyntax = implicitArrayCreationExpressionSyntax.Parent as ArgumentSyntax;
-                }
-            }
-
-            if (argumentSyntax.IsActivator(semanticModel, out var typeArgument) &&
+            if (anonymousObject.Parent is ArgumentSyntax argumentSyntax && 
+                argumentSyntax.IsActivator(semanticModel, out var typeArgument) &&
                 typeArgument.HasMessageContract(out var messageContractType))
             {
                 var dictionary = new Dictionary<AnonymousObjectCreationExpressionSyntax, ITypeSymbol>();
@@ -107,6 +97,10 @@ namespace MassTransit.Analyzers
                     else if (initializer.Expression is AnonymousObjectCreationExpressionSyntax anonymousObjectProperty)
                     {
                         FindAnonymousTypesWithMessageContractsInTree(dictionary, anonymousObjectProperty, messageContractProperty.Type);
+                    }
+                    else if (initializer.Expression is InvocationExpressionSyntax invocationExpressionSyntax)
+                    {
+                        // TODO: get the return type of the invocation expression. if this is a list of anonymous types then add missing properties
                     }
                 }
             }

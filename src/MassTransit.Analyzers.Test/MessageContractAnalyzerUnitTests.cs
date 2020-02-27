@@ -12,6 +12,7 @@ namespace MassTransit.Analyzers.MessageContractAnalyzer.Test
         private readonly string Usings = @"
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using MassTransit;
 ";
@@ -19,81 +20,144 @@ using MassTransit;
         private readonly string MessageContracts = @"
 namespace ConsoleApplication1
 {        
-    public interface ICommand
+    public interface OrderSubmitted
     {
-        Guid CommandId { get; }
-        Guid StreamId { get; }
+        Guid Id { get; }
+        string CustomerId { get; }
+        IReadOnlyList<OrderItem> OrderItems { get; }
     }
 
-    public interface IAddress
+    public interface SubmitOrder
     {
-        string Street { get; }
-        string Place { get; }
+        Guid Id { get; }
+        string CustomerId { get; }
+        IReadOnlyList<OrderItem> OrderItems { get; }
     }
 
-    public interface IIdentification
+    public interface OrderItem
     {
-        string Type { get; }
-        string IssuingCountry { get; }
-        string Number { get; }
+        Guid Id { get; }
+        Product Product { get; }
+        int Quantity { get; }
+        decimal Price { get; }
     }
 
-    public interface ICreateCommand : ICommand
+    public interface Product
     {
         string Name { get; }
-        IAddress BillingAddress { get; }
-        IAddress DeliveryAddress { get; }
-        IReadOnlyList<IIdentification> Identifications { get; } 
-        IReadOnlyList<IIdentification> Documents { get; } 
+        string Category { get; }
+    }
+
+    public interface CheckOrderStatus
+    {
+        Guid OrderId { get; }
+    }
+
+    public interface OrderStatusResult
+    {
+        Guid OrderId { get; }
+        string Status { get; }
     }
 }
+";
+
+        private readonly string MessageContractsDifferentNamespace = @"
+namespace ConsoleApplication1.Messages
+{        
+    public interface OrderSubmitted
+    {
+        Guid Id { get; }
+        string CustomerId { get; }
+        IReadOnlyList<OrderItem> OrderItems { get; }
+    }
+
+    public interface SubmitOrder
+    {
+        Guid Id { get; }
+        string CustomerId { get; }
+        IReadOnlyList<OrderItem> OrderItems { get; }
+    }
+
+    public interface OrderItem
+    {
+        Guid Id { get; }
+        Product Product { get; }
+        int Quantity { get; }
+        decimal Price { get; }
+    }
+
+    public interface Product
+    {
+        string Name { get; }
+        string Category { get; }
+    }
+
+    public interface CheckOrderStatus
+    {
+        Guid OrderId { get; }
+    }
+
+    public interface OrderStatusResult
+    {
+        Guid OrderId { get; }
+        string Status { get; }
+    }
+}
+";
+
+        private readonly string Dtos = @"
+    public class OrderDto
+    {
+        public Guid Id { get; set; }
+        public string CustomerId { get; set; }
+        public ICollection<OrderItemDto> OrderItems { get; set; }
+    }
+
+    public class OrderItemDto
+    {
+        public Guid Id { get; set; }
+        public ProductDto Product { get; set; }
+        public int Quantity { get; set; }
+        public decimal Price { get; set; }
+    }
+
+    public class ProductDto
+    {
+        public string Name { get; set; }
+        public string Category { get; set; }
+    }
 ";
 
         [TestMethod]
         public void WhenPublishTypesAreStructurallyCompatibleAndNoMissingProperties_ShouldHaveNoDiagnostics()
         {
-            var test = Usings +  MessageContracts + @"
+            var test = Usings + MessageContracts + @"
 namespace ConsoleApplication1
 {        
     class Program
     {
         static async Task Main()
         {
-            var busControl = Bus.Factory.CreateUsingInMemory(cfg => { });
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            await busControl.Publish<ICreateCommand>(new
+            await bus.Publish<OrderSubmitted>(new
             {
-                Name = string.Empty,
-                BillingAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = new[] 
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = new[]
                 {
                     new
                     {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
                     }
-                },
-                Documents = new[] 
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                },
-                CommandId = Guid.NewGuid(),
-                StreamId = Guid.NewGuid()
+                }
             });
         }
     }
@@ -113,42 +177,27 @@ namespace ConsoleApplication1
     {
         static async Task Main()
         {
-            var busControl = Bus.Factory.CreateUsingInMemory(cfg => { });
-            var sendEndpoint = await busControl.GetSendEndpoint(new Uri(""queue:queue_name""));
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+            var sendEndpoint = await bus.GetSendEndpoint(null);
 
-            await sendEndpoint.Send<ICreateCommand>(new
+            await sendEndpoint.Send<SubmitOrder>(new
             {
-                Name = string.Empty,
-                BillingAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = new[] 
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = new[]
                 {
                     new
                     {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
                     }
-                },
-                Documents = new[] 
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                },
-                CommandId = Guid.NewGuid(),
-                StreamId = Guid.NewGuid()
+                }
             });
         }
     }
@@ -157,7 +206,6 @@ namespace ConsoleApplication1
 
             VerifyCSharpDiagnostic(test);
         }
-
 
         [TestMethod]
         public void WhenCreateRequestTypesAreStructurallyCompatibleAndNoMissingProperties_ShouldHaveNoDiagnostics()
@@ -169,43 +217,17 @@ namespace ConsoleApplication1
     {
         static async Task Main()
         {
-            var busControl = Bus.Factory.CreateUsingInMemory(cfg => { });
-            var requestClient = busControl.CreateRequestClient<ICreateCommand>(null);
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+            var requestClient = bus.CreateRequestClient<CheckOrderStatus>(null);
 
-            var request = requestClient.Create(new
+            using (var request = requestClient.Create(new
             {
-                Name = string.Empty,
-                BillingAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = new[] 
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                },
-                Documents = new[] 
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                },
-                CommandId = Guid.NewGuid(),
-                StreamId = Guid.NewGuid()
-            });
+                OrderId = NewId.NextGuid()
+            }))
+            {
+                var response = await request.GetResponse<OrderStatusResult>();
+                var result = response.Message;
+            }
         }
     }
 }
@@ -215,264 +237,35 @@ namespace ConsoleApplication1
         }
 
 
-
-        [TestMethod]
-        public void WhenReadOnlyListTypesAreStructurallyCompatibleAndNoMissingProperties_ShouldHaveNoDiagnostics()
-        {
-            var test = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-
-            VerifyCSharpDiagnostic(test);
-        }
-
-        [TestMethod]
-        public void WhenArrayTypesAreStructurallyCompatibleAndNoMissingProperties_ShouldHaveNoDiagnostics()
-        {
-            var test = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<IIdentification[]>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-
-            VerifyCSharpDiagnostic(test);
-        }
-
-        [TestMethod]
-        public void WhenListTypesAreStructurallyCompatibleAndNoMissingProperties_ShouldHaveNoDiagnostics()
-        {
-            var test = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<List<IIdentification>>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-
-            VerifyCSharpDiagnostic(test);
-        }
 
         [TestMethod]
         public void WhenTypesAreStructurallyIncompatibleAndNoMissingProperties_ShouldHaveDiagnostic()
         {
-            var test = Usings +  MessageContracts + @"
+            var test = Usings + MessageContracts + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = 0
-            });
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
+            await bus.Publish<OrderSubmitted>(new
             {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
+                Id = NewId.NextGuid(),
+                CustomerId = 1,
+                OrderItems = new[]
                 {
                     new
                     {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
                     }
                 }
             });
@@ -483,11 +276,11 @@ namespace ConsoleApplication1
             var expected = new DiagnosticResult
             {
                 Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'IAddress'. The following properties of the anonymous type are incompatible: Place",
+                Message = "Anonymous type does not map to message contract 'OrderSubmitted'. The following properties of the anonymous type are incompatible: CustomerId",
                 Severity = DiagnosticSeverity.Error,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 71, 69)
+                            new DiagnosticResultLocation("Test0.cs", 58, 47)
                         }
             };
 
@@ -499,60 +292,83 @@ namespace ConsoleApplication1
         [TestMethod]
         public void WhenTypesAreStructurallyIncompatibleWithUnknownPropertyAndNoMissingProperties_ShouldHaveDiagnostic()
         {
-            var test = Usings +  MessageContracts + @"
+            var test = Usings + MessageContracts + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty,
-                Unknown = string.Empty
-            });
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
+            await bus.Publish<OrderSubmitted>(new
             {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = new[]
                 {
                     new
                     {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
+                    }
+                },
+                Amount = 100.0m
+            });
+        }
+    }
+}
+";
+            var expected = new DiagnosticResult
+            {
+                Id = "MCA0001",
+                Message = "Anonymous type does not map to message contract 'OrderSubmitted'. The following properties of the anonymous type are incompatible: Amount",
+                Severity = DiagnosticSeverity.Error,
+                Locations =
+                    new[] {
+                            new DiagnosticResultLocation("Test0.cs", 58, 47)
+                        }
+            };
+
+            VerifyCSharpDiagnostic(test, expected);
+
+            VerifyCSharpFix(test, test);
+        }
+
+        [TestMethod]
+        public void WhenTypesAreStructurallyIncompatibleAtNestedTypePropertyAndNoMissingProperties_ShouldHaveDiagnostic()
+        {
+            var test = Usings + MessageContracts + @"
+namespace ConsoleApplication1
+{
+    class Program
+    {
+        static async Task Main()
+        {
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            await bus.Publish<OrderSubmitted>(new
+            {
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = new[]
+                {
                     new
                     {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = 1
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
                     }
                 }
             });
@@ -563,11 +379,11 @@ namespace ConsoleApplication1
             var expected = new DiagnosticResult
             {
                 Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'IAddress'. The following properties of the anonymous type are incompatible: Unknown",
+                Message = "Anonymous type does not map to message contract 'OrderSubmitted'. The following properties of the anonymous type are incompatible: OrderItems.Product.Category",
                 Severity = DiagnosticSeverity.Error,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 71, 69)
+                            new DiagnosticResultLocation("Test0.cs", 58, 47)
                         }
             };
 
@@ -577,607 +393,34 @@ namespace ConsoleApplication1
         }
 
         [TestMethod]
-        public void WhenReadOnlyListTypesAreStructurallyIncompatibleAndNoMissingProperties_ShouldHaveDiagnostic()
+        public void WhenTypesAreStructurallyIncompatibleWithUnknownPropertyAtNestedTypePropertyAndNoMissingProperties_ShouldHaveDiagnostic()
         {
-            var test = Usings +  MessageContracts + @"
+            var test = Usings + MessageContracts + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
+            await bus.Publish<OrderSubmitted>(new
             {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = 0
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = 0
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = new[]
                 {
                     new
                     {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            var expected1 = new DiagnosticResult
-            {
-                Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'IIdentification'. The following properties of the anonymous type are incompatible: Number",
-                Severity = DiagnosticSeverity.Error,
-                Locations =
-                    new[] {
-                            new DiagnosticResultLocation("Test0.cs", 79, 17)
-                        }
-            };
-
-            var expected2 = new DiagnosticResult
-            {
-                Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'IIdentification'. The following properties of the anonymous type are incompatible: Number",
-                Severity = DiagnosticSeverity.Error,
-                Locations =
-                    new[] {
-                        new DiagnosticResultLocation("Test0.cs", 85, 17)
-                    }
-            };
-
-            VerifyCSharpDiagnostic(test, expected1, expected2);
-
-            VerifyCSharpFix(test, test);
-        }
-
-        [TestMethod]
-        public void WhenReadOnlyListTypesAreStructurallyIncompatibleWithUnknownPropertyAndNoMissingProperties_ShouldHaveDiagnostic()
-        {
-            var test = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty,
-                    Unknown = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty,
-                    Unknown = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            var expected1 = new DiagnosticResult
-            {
-                Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'IIdentification'. The following properties of the anonymous type are incompatible: Unknown",
-                Severity = DiagnosticSeverity.Error,
-                Locations =
-                    new[] {
-                            new DiagnosticResultLocation("Test0.cs", 79, 17)
-                        }
-            };
-
-            var expected2 = new DiagnosticResult
-            {
-                Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'IIdentification'. The following properties of the anonymous type are incompatible: Unknown",
-                Severity = DiagnosticSeverity.Error,
-                Locations =
-                    new[] {
-                        new DiagnosticResultLocation("Test0.cs", 86, 17)
-                    }
-            };
-
-            VerifyCSharpDiagnostic(test, expected1, expected2);
-
-            VerifyCSharpFix(test, test);
-        }
-
-        [TestMethod]
-        public void WhenArrayTypesAreStructurallyIncompatibleAndNoMissingProperties_ShouldHaveDiagnostic()
-        {
-            var test = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<IIdentification[]>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = 0
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = 0
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            var expected1 = new DiagnosticResult
-            {
-                Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'IIdentification'. The following properties of the anonymous type are incompatible: Number",
-                Severity = DiagnosticSeverity.Error,
-                Locations =
-                    new[] {
-                            new DiagnosticResultLocation("Test0.cs", 79, 17)
-                        }
-            };
-
-            var expected2 = new DiagnosticResult
-            {
-                Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'IIdentification'. The following properties of the anonymous type are incompatible: Number",
-                Severity = DiagnosticSeverity.Error,
-                Locations =
-                    new[] {
-                        new DiagnosticResultLocation("Test0.cs", 85, 17)
-                    }
-            };
-
-            VerifyCSharpDiagnostic(test, expected1, expected2);
-
-            VerifyCSharpFix(test, test);
-        }
-
-        [TestMethod]
-        public void WhenArrayTypesAreStructurallyIncompatibleWithUnknownPropertyAndNoMissingProperties_ShouldHaveDiagnostic()
-        {
-            var test = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<IIdentification[]>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty,
-                    Unknown = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty,
-                    Unknown = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            var expected1 = new DiagnosticResult
-            {
-                Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'IIdentification'. The following properties of the anonymous type are incompatible: Unknown",
-                Severity = DiagnosticSeverity.Error,
-                Locations =
-                    new[] {
-                            new DiagnosticResultLocation("Test0.cs", 79, 17)
-                        }
-            };
-
-            var expected2 = new DiagnosticResult
-            {
-                Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'IIdentification'. The following properties of the anonymous type are incompatible: Unknown",
-                Severity = DiagnosticSeverity.Error,
-                Locations =
-                    new[] {
-                        new DiagnosticResultLocation("Test0.cs", 86, 17)
-                    }
-            };
-
-            VerifyCSharpDiagnostic(test, expected1, expected2);
-
-            VerifyCSharpFix(test, test);
-        }
-
-        [TestMethod]
-        public void WhenListTypesAreStructurallyIncompatibleAndNoMissingProperties_ShouldHaveDiagnostic()
-        {
-            var test = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<List<IIdentification>>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = 0
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = 0
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            var expected1 = new DiagnosticResult
-            {
-                Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'IIdentification'. The following properties of the anonymous type are incompatible: Number",
-                Severity = DiagnosticSeverity.Error,
-                Locations =
-                    new[] {
-                            new DiagnosticResultLocation("Test0.cs", 79, 17)
-                        }
-            };
-
-            var expected2 = new DiagnosticResult
-            {
-                Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'IIdentification'. The following properties of the anonymous type are incompatible: Number",
-                Severity = DiagnosticSeverity.Error,
-                Locations =
-                    new[] {
-                        new DiagnosticResultLocation("Test0.cs", 85, 17)
-                    }
-            };
-
-            VerifyCSharpDiagnostic(test, expected1, expected2);
-
-            VerifyCSharpFix(test, test);
-        }
-
-        [TestMethod]
-        public void WhenListTypesAreStructurallyIncompatibleWithUnknownPropertyAndNoMissingProperties_ShouldHaveDiagnostic()
-        {
-            var test = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<List<IIdentification>>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty,
-                    Unknown = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty,
-                    Unknown = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            var expected1 = new DiagnosticResult
-            {
-                Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'IIdentification'. The following properties of the anonymous type are incompatible: Unknown",
-                Severity = DiagnosticSeverity.Error,
-                Locations =
-                    new[] {
-                            new DiagnosticResultLocation("Test0.cs", 79, 17)
-                        }
-            };
-
-            var expected2 = new DiagnosticResult
-            {
-                Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'IIdentification'. The following properties of the anonymous type are incompatible: Unknown",
-                Severity = DiagnosticSeverity.Error,
-                Locations =
-                    new[] {
-                        new DiagnosticResultLocation("Test0.cs", 86, 17)
-                    }
-            };
-
-            VerifyCSharpDiagnostic(test, expected1, expected2);
-
-            VerifyCSharpFix(test, test);
-        }
-
-        [TestMethod]
-        public void WhenCommandTypesAreStructurallyIncompatibleAndNoMissingProperties_ShouldHaveDiagnostic()
-        {
-            var test = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = 0,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = ""Category"",
+                            Price = 10.0m
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
                     }
                 }
             });
@@ -1188,11 +431,11 @@ namespace ConsoleApplication1
             var expected = new DiagnosticResult
             {
                 Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'ICreateCommand'. The following properties of the anonymous type are incompatible: Name",
+                Message = "Anonymous type does not map to message contract 'OrderSubmitted'. The following properties of the anonymous type are incompatible: OrderItems.Product.Price",
                 Severity = DiagnosticSeverity.Error,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 93, 67)
+                            new DiagnosticResultLocation("Test0.cs", 58, 47)
                         }
             };
 
@@ -1202,62 +445,33 @@ namespace ConsoleApplication1
         }
 
         [TestMethod]
-        public void WhenCommandTypesAreStructurallyIncompatibleWithUnknownPropertyAndNoMissingProperties_ShouldHaveDiagnostic()
+        public void WhenTypesAreStructurallyIncompatibleAtNestedArrayTypePropertyAndNoMissingProperties_ShouldHaveDiagnostic()
         {
-            var test = Usings +  MessageContracts + @"
+            var test = Usings + MessageContracts + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
+            await bus.Publish<OrderSubmitted>(new
             {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                Unknown = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = new[]
                 {
                     new
                     {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10,
+                        Price = 10.0
                     }
                 }
             });
@@ -1268,11 +482,11 @@ namespace ConsoleApplication1
             var expected = new DiagnosticResult
             {
                 Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'ICreateCommand'. The following properties of the anonymous type are incompatible: Unknown",
+                Message = "Anonymous type does not map to message contract 'OrderSubmitted'. The following properties of the anonymous type are incompatible: OrderItems.Price",
                 Severity = DiagnosticSeverity.Error,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 93, 67)
+                            new DiagnosticResultLocation("Test0.cs", 58, 47)
                         }
             };
 
@@ -1282,61 +496,34 @@ namespace ConsoleApplication1
         }
 
         [TestMethod]
-        public void WhenCommandTypesAreStructurallyIncompatibleAtNestedTypePropertyAndNoMissingProperties_ShouldHaveDiagnostic()
+        public void WhenTypesAreStructurallyIncompatibleWithUnknownPropertyAtNestedArrayTypePropertyAndNoMissingProperties_ShouldHaveDiagnostic()
         {
-            var test = Usings +  MessageContracts + @"
+            var test = Usings + MessageContracts + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
+            await bus.Publish<OrderSubmitted>(new
             {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = 0
-                },
-                Identifications = identifications,
-                Documents = new[]
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = new[]
                 {
                     new
                     {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10,
+                        Price = 10.0m,
+                        Amount = 100.0m
                     }
                 }
             });
@@ -1347,11 +534,11 @@ namespace ConsoleApplication1
             var expected = new DiagnosticResult
             {
                 Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'ICreateCommand'. The following properties of the anonymous type are incompatible: DeliveryAddress.Place",
+                Message = "Anonymous type does not map to message contract 'OrderSubmitted'. The following properties of the anonymous type are incompatible: OrderItems.Amount",
                 Severity = DiagnosticSeverity.Error,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 93, 67)
+                            new DiagnosticResultLocation("Test0.cs", 58, 47)
                         }
             };
 
@@ -1360,301 +547,34 @@ namespace ConsoleApplication1
             VerifyCSharpFix(test, test);
         }
 
-        [TestMethod]
-        public void WhenCommandTypesAreStructurallyIncompatibleWithUnknownPropertyAtNestedTypePropertyAndNoMissingProperties_ShouldHaveDiagnostic()
-        {
-            var test = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty,
-                    Unknown = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            var expected = new DiagnosticResult
-            {
-                Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'ICreateCommand'. The following properties of the anonymous type are incompatible: DeliveryAddress.Unknown",
-                Severity = DiagnosticSeverity.Error,
-                Locations =
-                    new[] {
-                            new DiagnosticResultLocation("Test0.cs", 93, 67)
-                        }
-            };
-
-            VerifyCSharpDiagnostic(test, expected);
-
-            VerifyCSharpFix(test, test);
-        }
-
-        [TestMethod]
-        public void WhenCommandTypesAreStructurallyIncompatibleAtNestedArrayTypePropertyAndNoMissingProperties_ShouldHaveDiagnostic()
-        {
-            var test = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = 0
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = 0
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            var expected = new DiagnosticResult
-            {
-                Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'ICreateCommand'. The following properties of the anonymous type are incompatible: Documents.Number",
-                Severity = DiagnosticSeverity.Error,
-                Locations =
-                    new[] {
-                            new DiagnosticResultLocation("Test0.cs", 93, 67)
-                        }
-            };
-
-            VerifyCSharpDiagnostic(test, expected);
-
-            VerifyCSharpFix(test, test);
-        }
-
-        [TestMethod]
-        public void WhenCommandTypesAreStructurallyIncompatibleWithUnknownPropertyAtNestedArrayTypePropertyAndNoMissingProperties_ShouldHaveDiagnostic()
-        {
-            var test = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty,
-                        Unknown = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty,
-                        Unknown = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            var expected = new DiagnosticResult
-            {
-                Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'ICreateCommand'. The following properties of the anonymous type are incompatible: Documents.Unknown",
-                Severity = DiagnosticSeverity.Error,
-                Locations =
-                    new[] {
-                            new DiagnosticResultLocation("Test0.cs", 93, 67)
-                        }
-            };
-
-            VerifyCSharpDiagnostic(test, expected);
-
-            VerifyCSharpFix(test, test);
-        }
 
         [TestMethod]
         public void WhenTypesAreStructurallyCompatibleAndMissingProperty_ShouldHaveDiagnosticAndCodeFix()
         {
-            var test = Usings +  MessageContracts + @"
+            var test = Usings + MessageContracts + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty
-            });
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
+            await bus.Publish<OrderSubmitted>(new
             {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
+                Id = NewId.NextGuid(),
+                OrderItems = new[]
                 {
                     new
                     {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
                     }
                 }
             });
@@ -1665,70 +585,124 @@ namespace ConsoleApplication1
             var expected = new DiagnosticResult
             {
                 Id = "MCA0003",
-                Message = "Anonymous type is missing properties that are in the message contract 'IAddress'. The following properties are missing: Place",
+                Message = "Anonymous type is missing properties that are in the message contract 'OrderSubmitted'. The following properties are missing: CustomerId",
                 Severity = DiagnosticSeverity.Info,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 71, 69)
+                            new DiagnosticResultLocation("Test0.cs", 58, 47)
                         }
             };
 
             VerifyCSharpDiagnostic(test, expected);
 
-            var fixtest = Usings +  MessageContracts + @"
+            var fixtest = Usings + MessageContracts + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty
-,
-                Place = default(string)
-            });
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
+            await bus.Publish<OrderSubmitted>(new
             {
-                new
+                Id = NewId.NextGuid(),
+                OrderItems = new[]
                 {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
+                    new
+                    {
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
+                    }
+                }
+,
+                CustomerId = default(string)
+            });
+        }
+    }
+}
+";
+            VerifyCSharpFix(test, fixtest);
+        }
+
+        [TestMethod]
+        public void WhenTypesAreStructurallyCompatibleAndMissingPropertyInNestedType_ShouldHaveDiagnosticAndCodeFix()
+        {
+            var test = Usings + MessageContracts + @"
+namespace ConsoleApplication1
+{
+    class Program
+    {
+        static async Task Main()
+        {
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            await bus.Publish<OrderSubmitted>(new
+            {
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = new[]
                 {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
+                    new
+                    {
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product""
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
+                    }
                 }
             });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
+        }
+    }
+}
+";
+            var expected = new DiagnosticResult
             {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
+                Id = "MCA0003",
+                Message = "Anonymous type is missing properties that are in the message contract 'OrderSubmitted'. The following properties are missing: OrderItems.Product.Category",
+                Severity = DiagnosticSeverity.Info,
+                Locations =
+                    new[] {
+                            new DiagnosticResultLocation("Test0.cs", 58, 47)
+                        }
+            };
+
+            VerifyCSharpDiagnostic(test, expected);
+
+            var fixtest = Usings + MessageContracts + @"
+namespace ConsoleApplication1
+{
+    class Program
+    {
+        static async Task Main()
+        {
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            await bus.Publish<OrderSubmitted>(new
+            {
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = new[]
                 {
                     new
                     {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product""
+,
+Category = default(string) },
+                        Quantity = 10,
+                        Price = 10.0m
                     }
                 }
             });
@@ -1740,510 +714,32 @@ namespace ConsoleApplication1
         }
 
         [TestMethod]
-        public void WhenReadOnlyListTypesAreStructurallyCompatibleAndMissingProperty_ShouldHaveDiagnosticAndCodeFix()
+        public void WhenTypesAreStructurallyCompatibleAndMissingPropertyInNestedArrayType_ShouldHaveDiagnosticAndCodeFix()
         {
-            var test = Usings +  MessageContracts + @"
+            var test = Usings + MessageContracts + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
+            await bus.Publish<OrderSubmitted>(new
             {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = new[]
                 {
                     new
                     {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            var expected1 = new DiagnosticResult
-            {
-                Id = "MCA0003",
-                Message =
-                    "Anonymous type is missing properties that are in the message contract 'IIdentification'. The following properties are missing: Number",
-                Severity = DiagnosticSeverity.Info,
-                Locations =
-                    new[] {
-                        new DiagnosticResultLocation("Test0.cs", 79, 17)
-                        }
-            };
-
-            var expected2 = new DiagnosticResult
-            {
-                Id = "MCA0003",
-                Message =
-                    "Anonymous type is missing properties that are in the message contract 'IIdentification'. The following properties are missing: Number",
-                Severity = DiagnosticSeverity.Info,
-                Locations =
-                    new[] {
-                        new DiagnosticResultLocation("Test0.cs", 84, 17)
-                    }
-            };
-
-            VerifyCSharpDiagnostic(test, expected1, expected2);
-
-            var fixtest = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty
-,
-Number = default(string) },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty
-,
-Number = default(string) }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            VerifyCSharpFix(test, fixtest, allowNewCompilerDiagnostics: true);
-        }
-
-        [TestMethod]
-        public void WhenArrayTypesAreStructurallyCompatibleAndMissingProperty_ShouldHaveDiagnosticAndCodeFix()
-        {
-            var test = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<IIdentification[]>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            var expected1 = new DiagnosticResult
-            {
-                Id = "MCA0003",
-                Message =
-                    "Anonymous type is missing properties that are in the message contract 'IIdentification'. The following properties are missing: Number",
-                Severity = DiagnosticSeverity.Info,
-                Locations =
-                    new[] {
-                        new DiagnosticResultLocation("Test0.cs", 79, 17)
-                        }
-            };
-
-            var expected2 = new DiagnosticResult
-            {
-                Id = "MCA0003",
-                Message =
-                    "Anonymous type is missing properties that are in the message contract 'IIdentification'. The following properties are missing: Number",
-                Severity = DiagnosticSeverity.Info,
-                Locations =
-                    new[] {
-                        new DiagnosticResultLocation("Test0.cs", 84, 17)
-                    }
-            };
-
-            VerifyCSharpDiagnostic(test, expected1, expected2);
-
-            var fixtest = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<IIdentification[]>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty
-,
-Number = default(string) },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty
-,
-Number = default(string) }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            VerifyCSharpFix(test, fixtest, allowNewCompilerDiagnostics: true);
-        }
-
-        [TestMethod]
-        public void WhenListTypesAreStructurallyCompatibleAndMissingProperty_ShouldHaveDiagnosticAndCodeFix()
-        {
-            var test = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<List<IIdentification>>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            var expected1 = new DiagnosticResult
-            {
-                Id = "MCA0003",
-                Message =
-                    "Anonymous type is missing properties that are in the message contract 'IIdentification'. The following properties are missing: Number",
-                Severity = DiagnosticSeverity.Info,
-                Locations =
-                    new[] {
-                        new DiagnosticResultLocation("Test0.cs", 79, 17)
-                        }
-            };
-
-            var expected2 = new DiagnosticResult
-            {
-                Id = "MCA0003",
-                Message =
-                    "Anonymous type is missing properties that are in the message contract 'IIdentification'. The following properties are missing: Number",
-                Severity = DiagnosticSeverity.Info,
-                Locations =
-                    new[] {
-                        new DiagnosticResultLocation("Test0.cs", 84, 17)
-                    }
-            };
-
-            VerifyCSharpDiagnostic(test, expected1, expected2);
-
-            var fixtest = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<List<IIdentification>>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty
-,
-Number = default(string) },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty
-,
-Number = default(string) }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            VerifyCSharpFix(test, fixtest, allowNewCompilerDiagnostics: true);
-        }
-
-        [TestMethod]
-        public void WhenCommandTypesAreStructurallyCompatibleAndMissingProperty_ShouldHaveDiagnosticAndCodeFix()
-        {
-            var test = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10
                     }
                 }
             });
@@ -2254,210 +750,42 @@ namespace ConsoleApplication1
             var expected = new DiagnosticResult
             {
                 Id = "MCA0003",
-                Message = "Anonymous type is missing properties that are in the message contract 'ICreateCommand'. The following properties are missing: Name",
+                Message = "Anonymous type is missing properties that are in the message contract 'OrderSubmitted'. The following properties are missing: OrderItems.Price",
                 Severity = DiagnosticSeverity.Info,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 93, 67)
+                            new DiagnosticResultLocation("Test0.cs", 58, 47)
                         }
             };
 
             VerifyCSharpDiagnostic(test, expected);
 
-            var fixtest = Usings +  MessageContracts + @"
+            var fixtest = Usings + MessageContracts + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
+            await bus.Publish<OrderSubmitted>(new
             {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = new[]
                 {
                     new
                     {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10
 ,
-                Name = default(string)
-            });
-        }
-    }
-}
-";
-            VerifyCSharpFix(test, fixtest);
-        }
-
-        [TestMethod]
-        public void WhenCommandTypesAreStructurallyCompatibleAndMissingPropertyInNestedType_ShouldHaveDiagnosticAndCodeFix()
-        {
-            var test = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            var expected = new DiagnosticResult
-            {
-                Id = "MCA0003",
-                Message = "Anonymous type is missing properties that are in the message contract 'ICreateCommand'. The following properties are missing: DeliveryAddress.Place",
-                Severity = DiagnosticSeverity.Info,
-                Locations =
-                    new[] {
-                            new DiagnosticResultLocation("Test0.cs", 93, 67)
-                        }
-            };
-
-            VerifyCSharpDiagnostic(test, expected);
-
-            var fixtest = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty
-,
-                    Place = default(string)
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
+Price = default(decimal) }
                 }
             });
         }
@@ -2468,59 +796,28 @@ namespace ConsoleApplication1
         }
 
         [TestMethod]
-        public void WhenCommandTypesAreStructurallyCompatibleAndMissingPropertyInNestedArrayType_ShouldHaveDiagnosticAndCodeFix()
+        public void WhenTypesAreStructurallyCompatibleAndMissingNestedTypeProperty_ShouldHaveDiagnosticAndCodeFix()
         {
-            var test = Usings +  MessageContracts + @"
+            var test = Usings + MessageContracts + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
+            await bus.Publish<OrderSubmitted>(new
             {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = new[]
                 {
                     new
                     {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty
+                        Id = NewId.NextGuid(),
+                        Quantity = 10,
+                        Price = 10.0m
                     }
                 }
             });
@@ -2531,70 +828,39 @@ namespace ConsoleApplication1
             var expected = new DiagnosticResult
             {
                 Id = "MCA0003",
-                Message = "Anonymous type is missing properties that are in the message contract 'ICreateCommand'. The following properties are missing: Documents.Number",
+                Message = "Anonymous type is missing properties that are in the message contract 'OrderSubmitted'. The following properties are missing: OrderItems.Product",
                 Severity = DiagnosticSeverity.Info,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 93, 67)
+                            new DiagnosticResultLocation("Test0.cs", 58, 47)
                         }
             };
 
             VerifyCSharpDiagnostic(test, expected);
 
-            var fixtest = Usings +  MessageContracts + @"
+            var fixtest = Usings + MessageContracts + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
+            await bus.Publish<OrderSubmitted>(new
             {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = new[]
                 {
                     new
                     {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty
+                        Id = NewId.NextGuid(),
+                        Quantity = 10,
+                        Price = 10.0m
 ,
-Number = default(string) },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty
-,
-Number = default(string) }
+Product = new { Name = default(string),
+Category = default(string) } }
                 }
             });
         }
@@ -2605,62 +871,21 @@ Number = default(string) }
         }
 
         [TestMethod]
-        public void WhenCommandTypesAreStructurallyCompatibleAndMissingNestedTypeProperty_ShouldHaveDiagnosticAndCodeFix()
+        public void WhenTypesAreStructurallyCompatibleAndMissingNestedArrayTypeProperty_ShouldHaveDiagnosticAndCodeFix()
         {
-            var test = Usings +  MessageContracts + @"
+            var test = Usings + MessageContracts + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
+            await bus.Publish<OrderSubmitted>(new
             {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer""
             });
         }
     }
@@ -2669,75 +894,42 @@ namespace ConsoleApplication1
             var expected = new DiagnosticResult
             {
                 Id = "MCA0003",
-                Message = "Anonymous type is missing properties that are in the message contract 'ICreateCommand'. The following properties are missing: BillingAddress",
+                Message = "Anonymous type is missing properties that are in the message contract 'OrderSubmitted'. The following properties are missing: OrderItems",
                 Severity = DiagnosticSeverity.Info,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 93, 67)
+                            new DiagnosticResultLocation("Test0.cs", 58, 47)
                         }
             };
 
             VerifyCSharpDiagnostic(test, expected);
 
-            var fixtest = Usings +  MessageContracts + @"
+            var fixtest = Usings + MessageContracts + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
+            await bus.Publish<OrderSubmitted>(new
             {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Identifications = identifications,
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
-                }
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer""
 ,
-                BillingAddress = new
-                {
-                    Street = default(string),
-                    Place = default(string)
+                OrderItems = new[] {
+                    new
+                    {
+                        Id = default(Guid),
+                        Product = new
+                        {
+                            Name = default(string),
+                            Category = default(string)
+                        },
+                        Quantity = default(int),
+                        Price = default(decimal)
+                    }
                 }
             });
         }
@@ -2746,62 +938,33 @@ namespace ConsoleApplication1
 ";
             VerifyCSharpFix(test, fixtest);
         }
+
 
         [TestMethod]
-        public void WhenCommandTypesAreStructurallyCompatibleAndMissingNestedArrayTypeProperty_ShouldHaveDiagnosticAndCodeFix()
+        public void WhenTypesAreStructurallyCompatibleAndMissingMultiplePropertiesAtDifferentNodes_ShouldHaveDiagnosticAndCodeFix()
         {
-            var test = Usings +  MessageContracts + @"
+            var test = Usings + MessageContracts + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
+            await bus.Publish<OrderSubmitted>(new
             {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Documents = new[]
+                Id = NewId.NextGuid(),
+                OrderItems = new[]
                 {
                     new
                     {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product""
+                        },
+                        Quantity = 10
                     }
                 }
             });
@@ -2812,79 +975,44 @@ namespace ConsoleApplication1
             var expected = new DiagnosticResult
             {
                 Id = "MCA0003",
-                Message = "Anonymous type is missing properties that are in the message contract 'ICreateCommand'. The following properties are missing: Identifications",
+                Message = "Anonymous type is missing properties that are in the message contract 'OrderSubmitted'. The following properties are missing: CustomerId, OrderItems.Product.Category, OrderItems.Price",
                 Severity = DiagnosticSeverity.Info,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 93, 67)
+                            new DiagnosticResultLocation("Test0.cs", 58, 47)
                         }
             };
 
             VerifyCSharpDiagnostic(test, expected);
 
-            var fixtest = Usings +  MessageContracts + @"
+            var fixtest = Usings + MessageContracts + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
+            await bus.Publish<OrderSubmitted>(new
             {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                Name = string.Empty,
-                BillingAddress = billingAddress,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty,
-                    Place = string.Empty
-                },
-                Documents = new[]
+                Id = NewId.NextGuid(),
+                OrderItems = new[]
                 {
                     new
                     {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty,
-                        Number = string.Empty
-                    }
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product""
+,
+Category = default(string) },
+                        Quantity = 10
+,
+Price = default(decimal) }
                 }
 ,
-                Identifications = new[] {
-                    new
-                    {
-                        Type = default(string),
-                        IssuingCountry = default(string),
-                        Number = default(string)
-                    }
-                }
+                CustomerId = default(string)
             });
         }
     }
@@ -2893,214 +1021,53 @@ namespace ConsoleApplication1
             VerifyCSharpFix(test, fixtest);
         }
 
-        [TestMethod]
-        public void WhenCommandTypesAreStructurallyCompatibleAndMissingMultiplePropertiesAtDifferentNodes_ShouldHaveDiagnosticAndCodeFix()
-        {
-            var test = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty
-                },
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty
-                    },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            var expected = new DiagnosticResult
-            {
-                Id = "MCA0003",
-                Message = "Anonymous type is missing properties that are in the message contract 'ICreateCommand'. The following properties are missing: Name, BillingAddress, DeliveryAddress.Place, Identifications, Documents.Number",
-                Severity = DiagnosticSeverity.Info,
-                Locations =
-                    new[] {
-                            new DiagnosticResultLocation("Test0.cs", 93, 67)
-                        }
-            };
-
-            VerifyCSharpDiagnostic(test, expected);
-
-            var fixtest = Usings +  MessageContracts + @"
-namespace ConsoleApplication1
-{
-    class Program
-    {
-        static async Task Main()
-        {
-            var billingAddress = Activator.CreateInstance<IAddress>(new
-            {
-                Street = string.Empty,
-                Place = string.Empty
-            });
-
-            var identifications = Activator.CreateInstance<IReadOnlyList<IIdentification>>(new[]
-            {
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                },
-                new
-                {
-                    Type = string.Empty,
-                    IssuingCountry = string.Empty,
-                    Number = string.Empty
-                }
-            });
-
-            var command = Activator.CreateCommand<ICreateCommand>(new
-            {
-                StreamId = Guid.Empty,
-                DeliveryAddress = new
-                {
-                    Street = string.Empty
-,
-                    Place = default(string)
-                },
-                Documents = new[]
-                {
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty
-,
-Number = default(string) },
-                    new
-                    {
-                        Type = string.Empty,
-                        IssuingCountry = string.Empty
-,
-Number = default(string) }
-                }
-,
-                Name = default(string),
-                BillingAddress = new
-                {
-                    Street = default(string),
-                    Place = default(string)
-                },
-                Identifications = new[] {
-                    new
-                    {
-                        Type = default(string),
-                        IssuingCountry = default(string),
-                        Number = default(string)
-                    }
-                }
-            });
-        }
-    }
-}
-";
-            VerifyCSharpFix(test, fixtest);
-        }
 
         [TestMethod]
         public void WhenAnonymousTypeUsingInferredMemberNamesAreStructurallyCompatibleAndNoMissingProperties_ShouldHaveNoDiagnostics()
         {
-            var test = Usings +  MessageContracts + @"
+            var test = Usings + MessageContracts + Dtos + @"
 namespace ConsoleApplication1
 {
-    using System.Linq;
-
-    public class AddressModel
-    {
-        public string Street { get; }
-        public string Place { get; }
-    }
-
-    public class IdentificationModel
-    {
-        public string Type { get; }
-        public string IssuingCountry { get; }
-        public string Number { get; }
-    }
-
-    public class CreateRequest
-    {
-        public Guid StreamId { get; }
-        public string Name { get; }
-        public AddressModel BillingAddress { get; } = new AddressModel();
-        public AddressModel DeliveryAddress { get; } = new AddressModel();
-        public IReadOnlyList<IdentificationModel> Identifications { get; } = new List<IdentificationModel>();
-        public IReadOnlyList<IdentificationModel> Documents { get; } = new List<IdentificationModel>();
-    }
-
     class Program
     {
         static async Task Main()
         {
-            var request = new CreateRequest();
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var command = Activator.CreateCommand<ICreateCommand>(new
+            var order = new OrderDto
             {
-                request.StreamId,
-                request.Name,
-                BillingAddress = new
+                Id = Guid.NewGuid(),
+                CustomerId = ""Customer"",
+                OrderItems =
                 {
-                    request.BillingAddress.Place,
-                    request.BillingAddress.Street
-                },
-                DeliveryAddress = new
+                    new OrderItemDto
+                    {
+                        Id = Guid.NewGuid(),
+                        Product = new ProductDto
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
+                    }
+                }
+            };
+
+            await bus.Publish<OrderSubmitted>(new
+            {
+                order.Id,
+                order.CustomerId,
+                OrderItems = order.OrderItems.Select(item => new
                 {
-                    request.DeliveryAddress.Place,
-                    request.DeliveryAddress.Street
-                },
-                Identifications = request.Identifications.Select(i => new
-                {
-                    i.Type,
-                    i.IssuingCountry,
-                    i.Number
-                }).ToList(),
-                Documents = request.Documents.Select(d => new
-                {
-                    d.Type,
-                    d.IssuingCountry,
-                    d.Number
+                    item.Id,
+                    Product = new
+                    {
+                        item.Product.Name,
+                        item.Product.Category
+                    },
+                    item.Quantity,
+                    item.Price
                 }).ToList()
             });
         }
@@ -3114,64 +1081,46 @@ namespace ConsoleApplication1
         [TestMethod]
         public void WhenAnonymousTypeUsingInferredMemberNamesAreStructurallyCompatibleAndMissingProperty_ShouldHaveDiagnosticAndCodeFix()
         {
-            var test = Usings +  MessageContracts + @"
+            var test = Usings + MessageContracts + Dtos + @"
 namespace ConsoleApplication1
 {
-    using System.Linq;
-
-    public class AddressModel
-    {
-        public string Street { get; }
-        public string Place { get; }
-    }
-
-    public class IdentificationModel
-    {
-        public string Type { get; }
-        public string IssuingCountry { get; }
-        public string Number { get; }
-    }
-
-    public class CreateRequest
-    {
-        public Guid StreamId { get; }
-        public string Name { get; }
-        public AddressModel BillingAddress { get; } = new AddressModel();
-        public AddressModel DeliveryAddress { get; } = new AddressModel();
-        public IReadOnlyList<IdentificationModel> Identifications { get; } = new List<IdentificationModel>();
-        public IReadOnlyList<IdentificationModel> Documents { get; } = new List<IdentificationModel>();
-    }
-
     class Program
     {
         static async Task Main()
         {
-            var request = new CreateRequest();
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var command = Activator.CreateCommand<ICreateCommand>(new
+            var order = new OrderDto
             {
-                request.StreamId,
-                request.Name,
-                BillingAddress = new
+                Id = Guid.NewGuid(),
+                CustomerId = ""Customer"",
+                OrderItems =
                 {
-                    request.BillingAddress.Street
-                },
-                DeliveryAddress = new
+                    new OrderItemDto
+                    {
+                        Id = Guid.NewGuid(),
+                        Product = new ProductDto
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
+                    }
+                }
+            };
+
+            await bus.Publish<OrderSubmitted>(new
+            {
+                order.Id,
+                OrderItems = order.OrderItems.Select(item => new
                 {
-                    request.DeliveryAddress.Street,
-                    request.DeliveryAddress.Place
-                },
-                Identifications = request.Identifications.Select(i => new
-                {
-                    i.Type,
-                    i.IssuingCountry,
-                    i.Number
-                }).ToList(),
-                Documents = request.Documents.Select(d => new
-                {
-                    d.Type,
-                    d.IssuingCountry,
-                    d.Number
+                    item.Id,
+                    Product = new
+                    {
+                        item.Product.Name
+                    },
+                    item.Quantity
                 }).ToList()
             });
         }
@@ -3181,77 +1130,59 @@ namespace ConsoleApplication1
             var expected = new DiagnosticResult
             {
                 Id = "MCA0003",
-                Message = "Anonymous type is missing properties that are in the message contract 'ICreateCommand'. The following properties are missing: BillingAddress.Place",
+                Message = "Anonymous type is missing properties that are in the message contract 'OrderSubmitted'. The following properties are missing: CustomerId, OrderItems.Product.Category, OrderItems.Price",
                 Severity = DiagnosticSeverity.Info,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 98, 67)
+                            new DiagnosticResultLocation("Test0.cs", 99, 47)
                         }
             };
 
             VerifyCSharpDiagnostic(test, expected);
 
-            var fixtest = Usings +  MessageContracts + @"
+            var fixtest = Usings + MessageContracts + Dtos + @"
 namespace ConsoleApplication1
 {
-    using System.Linq;
-
-    public class AddressModel
-    {
-        public string Street { get; }
-        public string Place { get; }
-    }
-
-    public class IdentificationModel
-    {
-        public string Type { get; }
-        public string IssuingCountry { get; }
-        public string Number { get; }
-    }
-
-    public class CreateRequest
-    {
-        public Guid StreamId { get; }
-        public string Name { get; }
-        public AddressModel BillingAddress { get; } = new AddressModel();
-        public AddressModel DeliveryAddress { get; } = new AddressModel();
-        public IReadOnlyList<IdentificationModel> Identifications { get; } = new List<IdentificationModel>();
-        public IReadOnlyList<IdentificationModel> Documents { get; } = new List<IdentificationModel>();
-    }
-
     class Program
     {
         static async Task Main()
         {
-            var request = new CreateRequest();
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
 
-            var command = Activator.CreateCommand<ICreateCommand>(new
+            var order = new OrderDto
             {
-                request.StreamId,
-                request.Name,
-                BillingAddress = new
+                Id = Guid.NewGuid(),
+                CustomerId = ""Customer"",
+                OrderItems =
                 {
-                    request.BillingAddress.Street
-,
-                    Place = default(string)
-                },
-                DeliveryAddress = new
+                    new OrderItemDto
+                    {
+                        Id = Guid.NewGuid(),
+                        Product = new ProductDto
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
+                    }
+                }
+            };
+
+            await bus.Publish<OrderSubmitted>(new
+            {
+                order.Id,
+                OrderItems = order.OrderItems.Select(item => new
                 {
-                    request.DeliveryAddress.Street,
-                    request.DeliveryAddress.Place
-                },
-                Identifications = request.Identifications.Select(i => new
-                {
-                    i.Type,
-                    i.IssuingCountry,
-                    i.Number
-                }).ToList(),
-                Documents = request.Documents.Select(d => new
-                {
-                    d.Type,
-                    d.IssuingCountry,
-                    d.Number
+                    item.Id,
+                    Product = new
+                    {
+                        item.Product.Name
+                    },
+                    item.Quantity
                 }).ToList()
+,
+                CustomerId = default(string)
             });
         }
     }
@@ -3260,30 +1191,31 @@ namespace ConsoleApplication1
             VerifyCSharpFix(test, fixtest);
         }
 
+
         [TestMethod]
         public void WhenSimpleArrayTypesAreStructurallyCompatibleAndNoMissingProperties_ShouldHaveNoDiagnostics()
         {
-            var test = Usings +  @"
+            var test = Usings + @"
 namespace ConsoleApplication1
 {
-    public interface IIdentification
+    public interface OrderSubmitted
     {
-        public string Type { get; }
-        public string IssuingCountry { get; }
-        public string Number { get; }
-        public IReadOnlyList<string> Codes { get; }
+        Guid Id { get; }
+        string CustomerId { get; }
+        IReadOnlyList<Guid> OrderItems { get; }
     }
 
     class Program
     {
         static async Task Main()
         {
-            var identification = Activator.CreateInstance<IIdentification>(new
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            await bus.Publish<OrderSubmitted>(new
             {
-                Type = string.Empty,
-                IssuingCountry = string.Empty,
-                Number = string.Empty,
-                Codes = Array.Empty<string>()
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = Array.Empty<Guid>()
             });
         }
     }
@@ -3296,27 +1228,27 @@ namespace ConsoleApplication1
         [TestMethod]
         public void WhenSimpleArrayTypesAreStructurallyIncompatibleAndNoMissingProperties_ShouldHaveDiagnostic()
         {
-            var test = Usings +  @"
+            var test = Usings + @"
 namespace ConsoleApplication1
 {
-    public interface IIdentification
+    public interface OrderSubmitted
     {
-        public string Type { get; }
-        public string IssuingCountry { get; }
-        public string Number { get; }
-        public IReadOnlyList<string> Codes { get; }
+        Guid Id { get; }
+        string CustomerId { get; }
+        IReadOnlyList<Guid> OrderItems { get; }
     }
 
     class Program
     {
         static async Task Main()
         {
-            var identification = Activator.CreateInstance<IIdentification>(new
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            await bus.Publish<OrderSubmitted>(new
             {
-                Type = string.Empty,
-                IssuingCountry = string.Empty,
-                Number = string.Empty,
-                Codes = Array.Empty<int>()
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = Array.Empty<int>()
             });
         }
     }
@@ -3325,11 +1257,11 @@ namespace ConsoleApplication1
             var expected = new DiagnosticResult
             {
                 Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'IIdentification'. The following properties of the anonymous type are incompatible: Codes",
+                Message = "Anonymous type does not map to message contract 'OrderSubmitted'. The following properties of the anonymous type are incompatible: OrderItems",
                 Severity = DiagnosticSeverity.Error,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 47, 76)
+                            new DiagnosticResultLocation("Test0.cs", 23, 47)
                         }
             };
 
@@ -3341,26 +1273,26 @@ namespace ConsoleApplication1
         [TestMethod]
         public void WhenSimpleArrayTypesAreStructurallyCompatibleAndMissingProperty_ShouldHaveDiagnosticAndCodeFix()
         {
-            var test = Usings +  @"
+            var test = Usings + @"
 namespace ConsoleApplication1
 {
-    public interface IIdentification
+    public interface OrderSubmitted
     {
-        public string Type { get; }
-        public string IssuingCountry { get; }
-        public string Number { get; }
-        public IReadOnlyList<string> Codes { get; }
+        Guid Id { get; }
+        string CustomerId { get; }
+        IReadOnlyList<Guid> OrderItems { get; }
     }
 
     class Program
     {
         static async Task Main()
         {
-            var identification = Activator.CreateInstance<IIdentification>(new
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            await bus.Publish<OrderSubmitted>(new
             {
-                Type = string.Empty,
-                IssuingCountry = string.Empty,
-                Number = string.Empty
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer""
             });
         }
     }
@@ -3369,38 +1301,38 @@ namespace ConsoleApplication1
             var expected = new DiagnosticResult
             {
                 Id = "MCA0003",
-                Message = "Anonymous type is missing properties that are in the message contract 'IIdentification'. The following properties are missing: Codes",
+                Message = "Anonymous type is missing properties that are in the message contract 'OrderSubmitted'. The following properties are missing: OrderItems",
                 Severity = DiagnosticSeverity.Info,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 47, 76)
+                            new DiagnosticResultLocation("Test0.cs", 23, 47)
                         }
             };
 
             VerifyCSharpDiagnostic(test, expected);
 
-            var fixtest = Usings +  @"
+            var fixtest = Usings + @"
 namespace ConsoleApplication1
 {
-    public interface IIdentification
+    public interface OrderSubmitted
     {
-        public string Type { get; }
-        public string IssuingCountry { get; }
-        public string Number { get; }
-        public IReadOnlyList<string> Codes { get; }
+        Guid Id { get; }
+        string CustomerId { get; }
+        IReadOnlyList<Guid> OrderItems { get; }
     }
 
     class Program
     {
         static async Task Main()
         {
-            var identification = Activator.CreateInstance<IIdentification>(new
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            await bus.Publish<OrderSubmitted>(new
             {
-                Type = string.Empty,
-                IssuingCountry = string.Empty,
-                Number = string.Empty
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer""
 ,
-                Codes = new[] { default(string) }
+                OrderItems = new[] { default(Guid) }
             });
         }
     }
@@ -3409,30 +1341,37 @@ namespace ConsoleApplication1
             VerifyCSharpFix(test, fixtest);
         }
 
+
         [TestMethod]
         public void WhenMessageContractHasNamespaceAreStructurallyCompatibleAndNoMissingProperties_ShouldHaveNoDiagnostics()
         {
-            var test = Usings +  @"
-namespace ConsoleApplication1.Messages
-{
-    public interface IIdentification
-    {
-        public string Type { get; }
-        public string IssuingCountry { get; }
-        public string Number { get; }
-    }
-}
+            var test = Usings + MessageContractsDifferentNamespace + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var identification = Activator.CreateInstance<Messages.IIdentification>(new
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            await bus.Publish<Messages.OrderSubmitted>(new
             {
-                Type = string.Empty,
-                IssuingCountry = string.Empty,
-                Number = string.Empty
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = new[]
+                {
+                    new
+                    {
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
+                    }
+                }
             });
         }
     }
@@ -3445,27 +1384,33 @@ namespace ConsoleApplication1
         [TestMethod]
         public void WhenMessageContractHasNamespaceAreStructurallyIncompatibleAndNoMissingProperties_ShouldHaveDiagnostic()
         {
-            var test = Usings +  @"
-namespace ConsoleApplication1.Messages
-{
-    public interface IIdentification
-    {
-        public string Type { get; }
-        public string IssuingCountry { get; }
-        public string Number { get; }
-    }
-}
+            var test = Usings + MessageContractsDifferentNamespace + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var identification = Activator.CreateInstance<Messages.IIdentification>(new
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            await bus.Publish<Messages.OrderSubmitted>(new
             {
-                Type = string.Empty,
-                IssuingCountry = string.Empty,
-                Number = 0
+                Id = NewId.NextGuid(),
+                CustomerId = 1,
+                OrderItems = new[]
+                {
+                    new
+                    {
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
+                    }
+                }
             });
         }
     }
@@ -3474,11 +1419,11 @@ namespace ConsoleApplication1
             var expected = new DiagnosticResult
             {
                 Id = "MCA0001",
-                Message = "Anonymous type does not map to message contract 'IIdentification'. The following properties of the anonymous type are incompatible: Number",
+                Message = "Anonymous type does not map to message contract 'OrderSubmitted'. The following properties of the anonymous type are incompatible: CustomerId",
                 Severity = DiagnosticSeverity.Error,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 48, 85)
+                            new DiagnosticResultLocation("Test0.cs", 58, 56)
                         }
             };
 
@@ -3490,26 +1435,30 @@ namespace ConsoleApplication1
         [TestMethod]
         public void WhenMessageContractHasNamespaceAreStructurallyCompatibleAndMissingProperty_ShouldHaveDiagnosticAndCodeFix()
         {
-            var test = Usings +  @"
-namespace ConsoleApplication1.Messages
-{
-    public interface IIdentification
-    {
-        public string Type { get; }
-        public string IssuingCountry { get; }
-        public string Number { get; }
-    }
-}
+            var test = Usings + MessageContractsDifferentNamespace + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var identification = Activator.CreateInstance<Messages.IIdentification>(new
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            await bus.Publish<Messages.OrderSubmitted>(new
             {
-                Type = string.Empty,
-                IssuingCountry = string.Empty
+                Id = NewId.NextGuid(),
+                OrderItems = new[]
+                {
+                    new
+                    {
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product""
+                        },
+                        Quantity = 10
+                    }
+                }
             });
         }
     }
@@ -3518,38 +1467,44 @@ namespace ConsoleApplication1
             var expected = new DiagnosticResult
             {
                 Id = "MCA0003",
-                Message = "Anonymous type is missing properties that are in the message contract 'IIdentification'. The following properties are missing: Number",
+                Message = "Anonymous type is missing properties that are in the message contract 'OrderSubmitted'. The following properties are missing: CustomerId, OrderItems.Product.Category, OrderItems.Price",
                 Severity = DiagnosticSeverity.Info,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 48, 85)
+                            new DiagnosticResultLocation("Test0.cs", 58, 56)
                         }
             };
 
             VerifyCSharpDiagnostic(test, expected);
 
-            var fixtest = Usings +  @"
-namespace ConsoleApplication1.Messages
-{
-    public interface IIdentification
-    {
-        public string Type { get; }
-        public string IssuingCountry { get; }
-        public string Number { get; }
-    }
-}
+            var fixtest = Usings + MessageContractsDifferentNamespace  + @"
 namespace ConsoleApplication1
 {
     class Program
     {
         static async Task Main()
         {
-            var identification = Activator.CreateInstance<Messages.IIdentification>(new
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            await bus.Publish<Messages.OrderSubmitted>(new
             {
-                Type = string.Empty,
-                IssuingCountry = string.Empty
+                Id = NewId.NextGuid(),
+                OrderItems = new[]
+                {
+                    new
+                    {
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product""
 ,
-                Number = default(string)
+Category = default(string) },
+                        Quantity = 10
+,
+Price = default(decimal) }
+                }
+,
+                CustomerId = default(string)
             });
         }
     }
@@ -3557,28 +1512,31 @@ namespace ConsoleApplication1
 ";
             VerifyCSharpFix(test, fixtest);
         }
+
 
         [TestMethod]
-        public void WhenMessageContractHasNullableAreStructurallyCompatibleAndMissingProperty_ShouldHaveDiagnosticAndCodeFix()
+        public void WhenMessageContractHasNullableAreStructurallyCompatibleAndMissingNullableProperty_ShouldHaveDiagnosticAndCodeFix()
         {
-            var test = Usings +  @"
+            var test = Usings + @"
 namespace ConsoleApplication1
 {
-    public interface IIdentification
+    public interface OrderSubmitted
     {
-        public string Type { get; }
-        public string IssuingCountry { get; }
-        public int? Number { get; }
+        Guid Id { get; }
+        int Quantity { get; }
+        decimal? Price { get; }
     }
 
     class Program
     {
         static async Task Main()
         {
-            var identification = Activator.CreateInstance<IIdentification>(new
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            await bus.Publish<OrderSubmitted>(new
             {
-                Type = string.Empty,
-                IssuingCountry = string.Empty
+                Id = NewId.NextGuid(),
+                Quantity = 10
             });
         }
     }
@@ -3587,36 +1545,38 @@ namespace ConsoleApplication1
             var expected = new DiagnosticResult
             {
                 Id = "MCA0003",
-                Message = "Anonymous type is missing properties that are in the message contract 'IIdentification'. The following properties are missing: Number",
+                Message = "Anonymous type is missing properties that are in the message contract 'OrderSubmitted'. The following properties are missing: Price",
                 Severity = DiagnosticSeverity.Info,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 46, 76)
+                            new DiagnosticResultLocation("Test0.cs", 23, 47)
                         }
             };
 
             VerifyCSharpDiagnostic(test, expected);
 
-            var fixtest = Usings +  @"
+            var fixtest = Usings + @"
 namespace ConsoleApplication1
 {
-    public interface IIdentification
+    public interface OrderSubmitted
     {
-        public string Type { get; }
-        public string IssuingCountry { get; }
-        public int? Number { get; }
+        Guid Id { get; }
+        int Quantity { get; }
+        decimal? Price { get; }
     }
 
     class Program
     {
         static async Task Main()
         {
-            var identification = Activator.CreateInstance<IIdentification>(new
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            await bus.Publish<OrderSubmitted>(new
             {
-                Type = string.Empty,
-                IssuingCountry = string.Empty
+                Id = NewId.NextGuid(),
+                Quantity = 10
 ,
-                Number = default(int?)
+                Price = default(decimal?)
             });
         }
     }
@@ -3624,11 +1584,12 @@ namespace ConsoleApplication1
 ";
             VerifyCSharpFix(test, fixtest);
         }
+
 
         [TestMethod]
         public void WhenActivatingGenericContractAreStructurallyCompatibleAndNoMissingProperties_ShouldHaveNoDiagnostics()
         {
-            var test = Usings +  @"
+            var test = Usings + @"
 namespace ConsoleApplication1
 {
     public interface INotification
@@ -3636,7 +1597,7 @@ namespace ConsoleApplication1
         public Guid StreamId { get; }
     }
 
-    public interface ICreatedNotification : INotification
+    public interface IProjectionUpdatedNotification : INotification
     {        
     }
 
@@ -3644,12 +1605,14 @@ namespace ConsoleApplication1
     {
         static async Task Main()
         {
-            var notification = CreateNotification<ICreatedNotification>(Guid.NewGuid());
+            await PublishNotification<IProjectionUpdatedNotification>(Guid.Empty);
         }
 
-        private static T CreateNotification<T>(Guid streamId) where T : INotification
+        private static Task PublishNotification<T>(Guid streamId) where T : class, INotification
         {
-            return Activator.CreateInstance<T>(new
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            return bus.Publish<T>(new
             {
                 StreamId = streamId
             });
@@ -3664,7 +1627,7 @@ namespace ConsoleApplication1
         [TestMethod]
         public void WhenActivatingGenericContractAreStructurallyIncompatibleAndNoMissingProperties_ShouldHaveDiagnostic()
         {
-            var test = Usings +  @"
+            var test = Usings + @"
 namespace ConsoleApplication1
 {
     public interface INotification
@@ -3672,7 +1635,7 @@ namespace ConsoleApplication1
         public int StreamId { get; }
     }
 
-    public interface ICreatedNotification : INotification
+    public interface IProjectionUpdatedNotification : INotification
     {        
     }
 
@@ -3680,12 +1643,14 @@ namespace ConsoleApplication1
     {
         static async Task Main()
         {
-            var notification = CreateNotification<ICreatedNotification>(Guid.NewGuid());
+            await PublishNotification<IProjectionUpdatedNotification>(Guid.Empty);
         }
 
-        private static T CreateNotification<T>(Guid streamId) where T : INotification
+        private static Task PublishNotification<T>(Guid streamId) where T : class, INotification
         {
-            return Activator.CreateInstance<T>(new
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            return bus.Publish<T>(new
             {
                 StreamId = streamId
             });
@@ -3700,7 +1665,7 @@ namespace ConsoleApplication1
                 Severity = DiagnosticSeverity.Error,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 53, 48)
+                            new DiagnosticResultLocation("Test0.cs", 30, 35)
                         }
             };
 
@@ -3712,7 +1677,7 @@ namespace ConsoleApplication1
         [TestMethod]
         public void WhenActivatingGenericContractAreStructurallyCompatibleAndMissingProperty_ShouldHaveDiagnosticAndCodeFix()
         {
-            var test = Usings +  @"
+            var test = Usings + @"
 namespace ConsoleApplication1
 {
     public interface INotification
@@ -3720,7 +1685,7 @@ namespace ConsoleApplication1
         public Guid StreamId { get; }
     }
 
-    public interface ICreatedNotification : INotification
+    public interface IProjectionUpdatedNotification : INotification
     {        
     }
 
@@ -3728,13 +1693,15 @@ namespace ConsoleApplication1
     {
         static async Task Main()
         {
-            var notification = CreateNotification<ICreatedNotification>(Guid.NewGuid());
+            await PublishNotification<IProjectionUpdatedNotification>(Guid.Empty);
         }
 
-        private static T CreateNotification<T>(Guid streamId) where T : INotification
+        private static Task PublishNotification<T>(Guid streamId) where T : class, INotification
         {
-            return Activator.CreateInstance<T>(new
-            {                
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            return bus.Publish<T>(new
+            {
             });
         }
     }
@@ -3747,13 +1714,13 @@ namespace ConsoleApplication1
                 Severity = DiagnosticSeverity.Info,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 53, 48)
+                            new DiagnosticResultLocation("Test0.cs", 30, 35)
                         }
             };
 
             VerifyCSharpDiagnostic(test, expected);
 
-            var fixtest = Usings +  @"
+            var fixtest = Usings + @"
 namespace ConsoleApplication1
 {
     public interface INotification
@@ -3761,7 +1728,7 @@ namespace ConsoleApplication1
         public Guid StreamId { get; }
     }
 
-    public interface ICreatedNotification : INotification
+    public interface IProjectionUpdatedNotification : INotification
     {        
     }
 
@@ -3769,12 +1736,14 @@ namespace ConsoleApplication1
     {
         static async Task Main()
         {
-            var notification = CreateNotification<ICreatedNotification>(Guid.NewGuid());
+            await PublishNotification<IProjectionUpdatedNotification>(Guid.Empty);
         }
 
-        private static T CreateNotification<T>(Guid streamId) where T : INotification
+        private static Task PublishNotification<T>(Guid streamId) where T : class, INotification
         {
-            return Activator.CreateInstance<T>(new
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            return bus.Publish<T>(new
             {
 
                 StreamId = default(Guid)
@@ -3785,6 +1754,7 @@ namespace ConsoleApplication1
 ";
             VerifyCSharpFix(test, fixtest);
         }
+
 
         protected override CodeFixProvider GetCSharpCodeFixProvider()
         {

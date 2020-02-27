@@ -58,17 +58,9 @@ namespace MassTransit.Analyzers
         private static void AnalyzeNode(SyntaxNodeAnalysisContext context)
         {
             var anonymousObjectCreationExpressionSyntax = (AnonymousObjectCreationExpressionSyntax)context.Node;
-            var argumentSyntax = anonymousObjectCreationExpressionSyntax.Parent as ArgumentSyntax;
-            if (argumentSyntax == null)
-            {
-                if (anonymousObjectCreationExpressionSyntax.Parent is InitializerExpressionSyntax initializerExpressionSyntax &&
-                    initializerExpressionSyntax.Parent is ImplicitArrayCreationExpressionSyntax implicitArrayCreationExpressionSyntax)
-                {
-                    argumentSyntax = implicitArrayCreationExpressionSyntax.Parent as ArgumentSyntax;
-                }
-            }
-
-            if (argumentSyntax.IsActivator(context.SemanticModel, out var typeArgument))
+            
+            if (anonymousObjectCreationExpressionSyntax.Parent is ArgumentSyntax argumentSyntax &&
+                argumentSyntax.IsActivator(context.SemanticModel, out var typeArgument))
             {                
                 if (typeArgument.HasMessageContract(out var messageContractType))
                 {
@@ -195,6 +187,7 @@ namespace MassTransit.Analyzers
                     if (messageContractPropertyTypeArgument.TypeKind == TypeKind.Interface)
                         if (messageProperty.Type.IsImmutableArray(out var messagePropertyTypeArgument) ||
                             messageProperty.Type.IsReadOnlyList(out messagePropertyTypeArgument) ||
+                            messageProperty.Type.IsList(out messagePropertyTypeArgument) ||
                             messageProperty.Type.IsArray(out messagePropertyTypeArgument))
                         {
                             var hasMissingProperties = HasMissingProperties(messagePropertyTypeArgument, messageContractPropertyTypeArgument,
