@@ -1,0 +1,42 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29519.181
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MassTransit.Analyzers", "MassTransit.Analyzers\MassTransit.Analyzers.csproj", "{BDE8BE32-38F3-4660-B97B-FE1B89052F65}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MassTransit.Analyzers.Test", "MassTransit.Analyzers.Test\MassTransit.Analyzers.Test.csproj", "{908BDF0E-9E5C-4053-BADA-D5AFB55356FA}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MassTransit.Analyzers", "Samples\MassTransit.Analyzers\MassTransit.Analyzers.csproj", "{12E2D348-FA50-4DFF-82DB-A9C88B8D67EB}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Samples", "Samples", "{CFFF8A89-4B72-4C4A-8E80-8481F21FF730}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BDE8BE32-38F3-4660-B97B-FE1B89052F65}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BDE8BE32-38F3-4660-B97B-FE1B89052F65}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BDE8BE32-38F3-4660-B97B-FE1B89052F65}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BDE8BE32-38F3-4660-B97B-FE1B89052F65}.Release|Any CPU.Build.0 = Release|Any CPU
+		{908BDF0E-9E5C-4053-BADA-D5AFB55356FA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{908BDF0E-9E5C-4053-BADA-D5AFB55356FA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{908BDF0E-9E5C-4053-BADA-D5AFB55356FA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{908BDF0E-9E5C-4053-BADA-D5AFB55356FA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{12E2D348-FA50-4DFF-82DB-A9C88B8D67EB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{12E2D348-FA50-4DFF-82DB-A9C88B8D67EB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{12E2D348-FA50-4DFF-82DB-A9C88B8D67EB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{12E2D348-FA50-4DFF-82DB-A9C88B8D67EB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{12E2D348-FA50-4DFF-82DB-A9C88B8D67EB} = {CFFF8A89-4B72-4C4A-8E80-8481F21FF730}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {811ECD50-1D20-4D23-A713-AA0272CD47FD}
+	EndGlobalSection
+EndGlobal
