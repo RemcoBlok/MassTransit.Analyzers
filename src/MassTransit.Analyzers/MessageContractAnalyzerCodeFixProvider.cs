@@ -57,17 +57,21 @@ namespace MassTransit.Analyzers
                 typeArgument.HasMessageContract(out var messageContractType))
             {
                 var dictionary = new Dictionary<AnonymousObjectCreationExpressionSyntax, ITypeSymbol>();
-                FindAnonymousTypesWithMessageContractsInTree(dictionary, anonymousObject, messageContractType);
+
+                await FindAnonymousTypesWithMessageContractsInTree(dictionary, anonymousObject, messageContractType, semanticModel).ConfigureAwait(false);
+
                 var newRoot = AddMissingProperties(root, dictionary);
+                
                 var formattedRoot = Formatter.Format(newRoot, Formatter.Annotation, document.Project.Solution.Workspace, document.Project.Solution.Workspace.Options);
+
                 return document.WithSyntaxRoot(formattedRoot);
             }
 
             return document;
         }
 
-        private static void FindAnonymousTypesWithMessageContractsInTree(IDictionary<AnonymousObjectCreationExpressionSyntax, ITypeSymbol> dictionary,
-            AnonymousObjectCreationExpressionSyntax anonymousObject, ITypeSymbol messageContractType)
+        private static async Task FindAnonymousTypesWithMessageContractsInTree(IDictionary<AnonymousObjectCreationExpressionSyntax, ITypeSymbol> dictionary,
+            AnonymousObjectCreationExpressionSyntax anonymousObject, ITypeSymbol messageContractType, SemanticModel semanticModel)
         {
             var messageContractProperties = GetMessageContractProperties(messageContractType);
 
@@ -82,25 +86,38 @@ namespace MassTransit.Analyzers
                     if (initializer.Expression is ImplicitArrayCreationExpressionSyntax implicitArrayCreationExpressionSyntax)
                     {
                         if (messageContractProperty.Type.IsImmutableArray(out var messageContractPropertyTypeArgument) ||
-                            messageContractProperty.Type.IsReadOnlyList(out messageContractPropertyTypeArgument))
+                            messageContractProperty.Type.IsReadOnlyList(out messageContractPropertyTypeArgument) ||
+                            messageContractProperty.Type.IsArray(out messageContractPropertyTypeArgument))
                         {
                             var expressions = implicitArrayCreationExpressionSyntax.Initializer.Expressions;
-                            foreach (var expressionSyntax in expressions)
+                            foreach (var expression in expressions)
                             {
-                                if (expressionSyntax is AnonymousObjectCreationExpressionSyntax anonymousObjectArrayInitializer)
+                                if (expression is AnonymousObjectCreationExpressionSyntax anonymousObjectArrayInitializer)
                                 {
-                                    FindAnonymousTypesWithMessageContractsInTree(dictionary, anonymousObjectArrayInitializer, messageContractPropertyTypeArgument);
+                                    await FindAnonymousTypesWithMessageContractsInTree(dictionary, anonymousObjectArrayInitializer, messageContractPropertyTypeArgument, semanticModel).ConfigureAwait(false);
                                 }
                             }
                         }
                     }
                     else if (initializer.Expression is AnonymousObjectCreationExpressionSyntax anonymousObjectProperty)
                     {
-                        FindAnonymousTypesWithMessageContractsInTree(dictionary, anonymousObjectProperty, messageContractProperty.Type);
+                        await FindAnonymousTypesWithMessageContractsInTree(dictionary, anonymousObjectProperty, messageContractProperty.Type, semanticModel).ConfigureAwait(false);
                     }
-                    else if (initializer.Expression is InvocationExpressionSyntax invocationExpressionSyntax)
+                    else if (initializer.Expression is InvocationExpressionSyntax invocationExpressionSyntax
+                        && semanticModel.GetSymbolInfo(invocationExpressionSyntax).Symbol is IMethodSymbol method
+                        && method.ReturnType.IsList(out var methodReturnTypeArgument)
+                        && methodReturnTypeArgument.IsAnonymousType)
                     {
-                        // TODO: get the return type of the invocation expression. if this is a list of anonymous types then add missing properties
+                        if (messageContractProperty.Type.IsImmutableArray(out var messageContractPropertyTypeArgument) ||
+                            messageContractProperty.Type.IsReadOnlyList(out messageContractPropertyTypeArgument) ||
+                            messageContractProperty.Type.IsArray(out messageContractPropertyTypeArgument))
+                        {
+                            var syntax = await methodReturnTypeArgument.DeclaringSyntaxReferences[0].GetSyntaxAsync().ConfigureAwait(false);
+                            if (syntax is AnonymousObjectCreationExpressionSyntax anonymousObjectTypeArgument)
+                            {
+                                await FindAnonymousTypesWithMessageContractsInTree(dictionary, anonymousObjectTypeArgument, messageContractPropertyTypeArgument, semanticModel).ConfigureAwait(false);
+                            }
+                        }
                     }
                 }
             }
@@ -195,7 +212,8 @@ namespace MassTransit.Analyzers
         {
             ExpressionSyntax expression;
             if (messageContractProperty.Type.IsImmutableArray(out var messageContractPropertyTypeArgument) ||
-                messageContractProperty.Type.IsReadOnlyList(out messageContractPropertyTypeArgument))
+                messageContractProperty.Type.IsReadOnlyList(out messageContractPropertyTypeArgument) ||
+                messageContractProperty.Type.IsArray(out messageContractPropertyTypeArgument))
             {
                 expression = CreateImplicitArray(messageContractPropertyTypeArgument);
             }

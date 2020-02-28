@@ -128,8 +128,190 @@ namespace ConsoleApplication1.Messages
     }
 ";
 
+        private readonly string DtosIncompatibe = @"
+    public class OrderDto
+    {
+        public Guid Id { get; set; }
+        public string CustomerId { get; set; }
+        public ICollection<OrderItemDto> OrderItems { get; set; }
+    }
+
+    public class OrderItemDto
+    {
+        public Guid Id { get; set; }
+        public ProductDto Product { get; set; }
+        public int Quantity { get; set; }
+        public decimal Price { get; set; }
+    }
+
+    public class ProductDto
+    {
+        public string Name { get; set; }
+        public int Category { get; set; }
+    }
+";
+
         [TestMethod]
-        public void WhenPublishTypesAreStructurallyCompatibleAndNoMissingProperties_ShouldHaveNoDiagnostics()
+        public void WhenPublishTypesAreStructurallyCompatibleAndMissingProperty_ShouldHaveDiagnostic()
+        {
+            var test = Usings + MessageContracts + @"
+namespace ConsoleApplication1
+{        
+    class Program
+    {
+        static async Task Main()
+        {
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            await bus.Publish<OrderSubmitted>(new
+            {
+                }
+            });
+        }
+    }
+}
+";
+            var expected = new DiagnosticResult
+            {
+                Id = "MCA0003",
+                Message = "Anonymous type is missing properties that are in the message contract 'OrderSubmitted'. The following properties are missing: Id, CustomerId, OrderItems",
+                Severity = DiagnosticSeverity.Info,
+                Locations =
+                    new[] {
+                            new DiagnosticResultLocation("Test0.cs", 58, 47)
+                        }
+            };
+
+            VerifyCSharpDiagnostic(test, expected);
+
+        }
+
+        [TestMethod]
+        public void WhenSendTypesAreStructurallyCompatibleAndMissingProperty_ShouldHaveDiagnostic()
+        {
+            var test = Usings + MessageContracts + @"
+namespace ConsoleApplication1
+{        
+    class Program
+    {
+        static async Task Main()
+        {
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+            var sendEndpoint = await bus.GetSendEndpoint(null);
+
+            await sendEndpoint.Send<SubmitOrder>(new
+            {
+            });
+        }
+    }
+}
+";
+            var expected = new DiagnosticResult
+            {
+                Id = "MCA0003",
+                Message = "Anonymous type is missing properties that are in the message contract 'SubmitOrder'. The following properties are missing: Id, CustomerId, OrderItems",
+                Severity = DiagnosticSeverity.Info,
+                Locations =
+                    new[] {
+                            new DiagnosticResultLocation("Test0.cs", 59, 50)
+                        }
+            };
+
+            VerifyCSharpDiagnostic(test, expected);
+        }
+
+        [TestMethod]
+        public void WhenCreateRequestTypesAreStructurallyCompatibleAndMissingProperty_ShouldHaveDiagnostic()
+        {
+            var test = Usings + MessageContracts + @"
+namespace ConsoleApplication1
+{        
+    class Program
+    {
+        static async Task Main()
+        {
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+            var requestClient = bus.CreateRequestClient<CheckOrderStatus>(null);
+
+            using (var request = requestClient.Create(new
+            {
+            }))
+            {
+                var response = await request.GetResponse<OrderStatusResult>();
+                var result = response.Message;
+            }
+        }
+    }
+}
+";
+            var expected = new DiagnosticResult
+            {
+                Id = "MCA0003",
+                Message = "Anonymous type is missing properties that are in the message contract 'CheckOrderStatus'. The following properties are missing: OrderId",
+                Severity = DiagnosticSeverity.Info,
+                Locations =
+                    new[] {
+                            new DiagnosticResultLocation("Test0.cs", 59, 55)
+                        }
+            };
+
+            VerifyCSharpDiagnostic(test, expected);
+        }
+
+
+        [TestMethod]
+        public void WhenTypeNotValidStructure_ShouldHaveDiagnostic()
+        {
+            var test = Usings + Dtos + @"
+namespace ConsoleApplication1
+{        
+    class Program
+    {
+        static async Task Main()
+        {
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            await bus.Publish<OrderDto>(new
+            {
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = new[]
+                {
+                    new
+                    {
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
+                    }
+                }
+            });
+        }
+    }
+}
+";
+            var expected = new DiagnosticResult
+            {
+                Id = "MCA0002",
+                Message = "Message contract 'OrderDto' does not have a valid structure",
+                Severity = DiagnosticSeverity.Error,
+                Locations =
+                    new[] {
+                            new DiagnosticResultLocation("Test0.cs", 37, 41)
+                        }
+            };
+
+            VerifyCSharpDiagnostic(test, expected);
+
+        }
+
+
+        [TestMethod]
+        public void WhenTypesAreStructurallyCompatibleAndNoMissingProperties_ShouldHaveNoDiagnostics()
         {
             var test = Usings + MessageContracts + @"
 namespace ConsoleApplication1
@@ -166,76 +348,6 @@ namespace ConsoleApplication1
 
             VerifyCSharpDiagnostic(test);
         }
-
-        [TestMethod]
-        public void WhenSendTypesAreStructurallyCompatibleAndNoMissingProperties_ShouldHaveNoDiagnostics()
-        {
-            var test = Usings + MessageContracts + @"
-namespace ConsoleApplication1
-{        
-    class Program
-    {
-        static async Task Main()
-        {
-            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
-            var sendEndpoint = await bus.GetSendEndpoint(null);
-
-            await sendEndpoint.Send<SubmitOrder>(new
-            {
-                Id = NewId.NextGuid(),
-                CustomerId = ""Customer"",
-                OrderItems = new[]
-                {
-                    new
-                    {
-                        Id = NewId.NextGuid(),
-                        Product = new
-                        {
-                            Name = ""Product"",
-                            Category = ""Category""
-                        },
-                        Quantity = 10,
-                        Price = 10.0m
-                    }
-                }
-            });
-        }
-    }
-}
-";
-
-            VerifyCSharpDiagnostic(test);
-        }
-
-        [TestMethod]
-        public void WhenCreateRequestTypesAreStructurallyCompatibleAndNoMissingProperties_ShouldHaveNoDiagnostics()
-        {
-            var test = Usings + MessageContracts + @"
-namespace ConsoleApplication1
-{        
-    class Program
-    {
-        static async Task Main()
-        {
-            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
-            var requestClient = bus.CreateRequestClient<CheckOrderStatus>(null);
-
-            using (var request = requestClient.Create(new
-            {
-                OrderId = NewId.NextGuid()
-            }))
-            {
-                var response = await request.GetResponse<OrderStatusResult>();
-                var result = response.Message;
-            }
-        }
-    }
-}
-";
-
-            VerifyCSharpDiagnostic(test);
-        }
-
 
 
         [TestMethod]
@@ -285,8 +397,6 @@ namespace ConsoleApplication1
             };
 
             VerifyCSharpDiagnostic(test, expected);
-
-            VerifyCSharpFix(test, test);
         }
 
         [TestMethod]
@@ -337,8 +447,6 @@ namespace ConsoleApplication1
             };
 
             VerifyCSharpDiagnostic(test, expected);
-
-            VerifyCSharpFix(test, test);
         }
 
         [TestMethod]
@@ -388,8 +496,6 @@ namespace ConsoleApplication1
             };
 
             VerifyCSharpDiagnostic(test, expected);
-
-            VerifyCSharpFix(test, test);
         }
 
         [TestMethod]
@@ -440,8 +546,6 @@ namespace ConsoleApplication1
             };
 
             VerifyCSharpDiagnostic(test, expected);
-
-            VerifyCSharpFix(test, test);
         }
 
         [TestMethod]
@@ -491,8 +595,6 @@ namespace ConsoleApplication1
             };
 
             VerifyCSharpDiagnostic(test, expected);
-
-            VerifyCSharpFix(test, test);
         }
 
         [TestMethod]
@@ -543,8 +645,6 @@ namespace ConsoleApplication1
             };
 
             VerifyCSharpDiagnostic(test, expected);
-
-            VerifyCSharpFix(test, test);
         }
 
 
@@ -938,8 +1038,7 @@ namespace ConsoleApplication1
 ";
             VerifyCSharpFix(test, fixtest);
         }
-
-
+        
         [TestMethod]
         public void WhenTypesAreStructurallyCompatibleAndMissingMultiplePropertiesAtDifferentNodes_ShouldHaveDiagnosticAndCodeFix()
         {
@@ -1079,6 +1178,73 @@ namespace ConsoleApplication1
         }
 
         [TestMethod]
+        public void WhenAnonymousTypeUsingInferredMemberNamesAreStructurallyIncompatibleAndNoMissingProperties_ShouldHaveDiagnostic()
+        {
+            var test = Usings + MessageContracts + DtosIncompatibe + @"
+namespace ConsoleApplication1
+{
+    class Program
+    {
+        static async Task Main()
+        {
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            var order = new OrderDto
+            {
+                Id = Guid.NewGuid(),
+                CustomerId = ""Customer"",
+                OrderItems =
+                {
+                    new OrderItemDto
+                    {
+                        Id = Guid.NewGuid(),
+                        Product = new ProductDto
+                        {
+                            Name = ""Product"",
+                            Category = 1
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
+                    }
+                }
+            };
+
+            await bus.Publish<OrderSubmitted>(new
+            {
+                order.Id,
+                order.CustomerId,
+                OrderItems = order.OrderItems.Select(item => new
+                {
+                    item.Id,
+                    Product = new
+                    {
+                        item.Product.Name,
+                        item.Product.Category
+                    },
+                    item.Quantity,
+                    item.Price
+                }).ToList()
+            });
+        }
+    }
+}
+";
+
+            var expected = new DiagnosticResult
+            {
+                Id = "MCA0001",
+                Message = "Anonymous type does not map to message contract 'OrderSubmitted'. The following properties of the anonymous type are incompatible: OrderItems.Product.Category",
+                Severity = DiagnosticSeverity.Error,
+                Locations =
+                    new[] {
+                            new DiagnosticResultLocation("Test0.cs", 99, 47)
+                        }
+            };
+
+            VerifyCSharpDiagnostic(test, expected);
+        }
+
+        [TestMethod]
         public void WhenAnonymousTypeUsingInferredMemberNamesAreStructurallyCompatibleAndMissingProperty_ShouldHaveDiagnosticAndCodeFix()
         {
             var test = Usings + MessageContracts + Dtos + @"
@@ -1178,8 +1344,12 @@ namespace ConsoleApplication1
                     Product = new
                     {
                         item.Product.Name
+,
+                        Category = default(string)
                     },
                     item.Quantity
+,
+                    Price = default(decimal)
                 }).ToList()
 ,
                 CustomerId = default(string)
@@ -1266,8 +1436,6 @@ namespace ConsoleApplication1
             };
 
             VerifyCSharpDiagnostic(test, expected);
-
-            VerifyCSharpFix(test, test);
         }
 
         [TestMethod]
@@ -1428,8 +1596,6 @@ namespace ConsoleApplication1
             };
 
             VerifyCSharpDiagnostic(test, expected);
-
-            VerifyCSharpFix(test, test);
         }
 
         [TestMethod]
@@ -1670,8 +1836,6 @@ namespace ConsoleApplication1
             };
 
             VerifyCSharpDiagnostic(test, expected);
-
-            VerifyCSharpFix(test, test);
         }
 
         [TestMethod]

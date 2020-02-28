@@ -57,14 +57,14 @@ namespace MassTransit.Analyzers
 
         private static void AnalyzeNode(SyntaxNodeAnalysisContext context)
         {
-            var anonymousObjectCreationExpressionSyntax = (AnonymousObjectCreationExpressionSyntax)context.Node;
+            var anonymousObject = (AnonymousObjectCreationExpressionSyntax)context.Node;
             
-            if (anonymousObjectCreationExpressionSyntax.Parent is ArgumentSyntax argumentSyntax &&
+            if (anonymousObject.Parent is ArgumentSyntax argumentSyntax &&
                 argumentSyntax.IsActivator(context.SemanticModel, out var typeArgument))
             {                
                 if (typeArgument.HasMessageContract(out var messageContractType))
                 {
-                    var anonymousType = context.SemanticModel.GetTypeInfo(anonymousObjectCreationExpressionSyntax).Type;
+                    var anonymousType = context.SemanticModel.GetTypeInfo(anonymousObject).Type;
 
                     var incompatibleProperties = new List<string>();
                     if (!TypesAreStructurallyCompatible(anonymousType, messageContractType, string.Empty, incompatibleProperties))
@@ -131,7 +131,8 @@ namespace MassTransit.Analyzers
                              messageProperty.Type.IsArray(out messagePropertyTypeArgument))
                     {
                         if (messageContractProperty.Type.IsImmutableArray(out var messageContractPropertyTypeArgument) ||
-                            messageContractProperty.Type.IsReadOnlyList(out messageContractPropertyTypeArgument))
+                            messageContractProperty.Type.IsReadOnlyList(out messageContractPropertyTypeArgument) ||
+                            messageContractProperty.Type.IsArray(out messageContractPropertyTypeArgument))
                         {
                             if (!SymbolEqualityComparer.Default.Equals(messagePropertyTypeArgument, messageContractPropertyTypeArgument))
                             {
@@ -182,7 +183,8 @@ namespace MassTransit.Analyzers
                     result = true;
                 }
                 else if (messageContractProperty.Type.IsImmutableArray(out var messageContractPropertyTypeArgument) ||
-                         messageContractProperty.Type.IsReadOnlyList(out messageContractPropertyTypeArgument))
+                         messageContractProperty.Type.IsReadOnlyList(out messageContractPropertyTypeArgument) ||
+                         messageContractProperty.Type.IsArray(out messageContractPropertyTypeArgument))
                 {
                     if (messageContractPropertyTypeArgument.TypeKind == TypeKind.Interface)
                         if (messageProperty.Type.IsImmutableArray(out var messagePropertyTypeArgument) ||
