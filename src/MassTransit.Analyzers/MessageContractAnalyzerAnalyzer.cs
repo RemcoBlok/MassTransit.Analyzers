@@ -58,10 +58,10 @@ namespace MassTransit.Analyzers
         private static void AnalyzeNode(SyntaxNodeAnalysisContext context)
         {
             var anonymousObject = (AnonymousObjectCreationExpressionSyntax)context.Node;
-            
+
             if (anonymousObject.Parent is ArgumentSyntax argumentSyntax &&
                 argumentSyntax.IsActivator(context.SemanticModel, out var typeArgument))
-            {                
+            {
                 if (typeArgument.HasMessageContract(out var messageContractType))
                 {
                     var anonymousType = context.SemanticModel.GetTypeInfo(anonymousObject).Type;
@@ -83,7 +83,7 @@ namespace MassTransit.Analyzers
                     }
                 }
                 else
-                {                    
+                {
                     var diagnostic = Diagnostic.Create(ValidMessageContractStructureRule, context.Node.GetLocation(), typeArgument.Name);
                     context.ReportDiagnostic(diagnostic);
                 }
@@ -96,7 +96,8 @@ namespace MassTransit.Analyzers
             if (SymbolEqualityComparer.Default.Equals(messageType, messageContractType)) return true;
 
             var messageContractProperties = GetMessageContractProperties(messageContractType);
-            var messageProperties = messageType.GetMembers().OfType<IPropertySymbol>().ToList();
+            var messageProperties = GetMessageProperties(messageType);
+            var result = true;
 
             foreach (var messageProperty in messageProperties)
             {
@@ -106,10 +107,10 @@ namespace MassTransit.Analyzers
                 if (messageContractProperty == null)
                 {
                     incompatibleProperties.Add(Append(path, messageProperty.Name));
-                    return false;
+                    result = false;
                 }
-
-                if (!SymbolEqualityComparer.Default.Equals(messageProperty.Type, messageContractProperty.Type))
+                else if (!SymbolEqualityComparer.Default.Equals(messageProperty.Type, messageContractProperty.Type)
+                    && !(messageProperty.Type.IsInVar(out var inVarType) && SymbolEqualityComparer.Default.Equals(inVarType, messageContractProperty.Type)))
                 {
                     if (messageProperty.Type.IsAnonymousType)
                     {
@@ -117,12 +118,12 @@ namespace MassTransit.Analyzers
                         {
                             if (!TypesAreStructurallyCompatible(messageProperty.Type, messageContractProperty.Type,
                                 Append(path, messageProperty.Name), incompatibleProperties))
-                                return false;
+                                result = false;
                         }
                         else
                         {
                             incompatibleProperties.Add(Append(path, messageProperty.Name));
-                            return false;
+                            result = false;
                         }
                     }
                     else if (messageProperty.Type.IsImmutableArray(out var messagePropertyTypeArgument) ||
@@ -140,36 +141,36 @@ namespace MassTransit.Analyzers
                                 {
                                     if (!TypesAreStructurallyCompatible(messagePropertyTypeArgument, messageContractPropertyTypeArgument,
                                         Append(path, messageProperty.Name), incompatibleProperties))
-                                        return false;
+                                        result = false;
                                 }
                                 else
                                 {
                                     incompatibleProperties.Add(Append(path, messageProperty.Name));
-                                    return false;
+                                    result = false;
                                 }
                             }
                         }
                         else
                         {
                             incompatibleProperties.Add(Append(path, messageProperty.Name));
-                            return false;
+                            result = false;
                         }
                     }
                     else
                     {
                         incompatibleProperties.Add(Append(path, messageProperty.Name));
-                        return false;
+                        result = false;
                     }
                 }
             }
 
-            return true;
+            return result;
         }
 
         static bool HasMissingProperties(ITypeSymbol messageType, ITypeSymbol messageContractType, string path, ICollection<string> missingProperties)
         {
             var messageContractProperties = GetMessageContractProperties(messageContractType);
-            var messageProperties = messageType.GetMembers().OfType<IPropertySymbol>().ToList();
+            var messageProperties = GetMessageProperties(messageType);
             var result = false;
 
             foreach (var messageContractProperty in messageContractProperties)
@@ -211,9 +212,14 @@ namespace MassTransit.Analyzers
             return result;
         }
 
+        private static List<IPropertySymbol> GetMessageProperties(ITypeSymbol messageType)
+        {
+            return messageType.GetMembers().OfType<IPropertySymbol>().Where(p => !p.Name.StartsWith("__")).ToList();
+        }
+
         static List<IPropertySymbol> GetMessageContractProperties(ITypeSymbol messageContractType)
         {
-            var messageContractTypes = new List<ITypeSymbol> {messageContractType};
+            var messageContractTypes = new List<ITypeSymbol> { messageContractType };
             messageContractTypes.AddRange(messageContractType.AllInterfaces);
 
             return messageContractTypes.SelectMany(i => i.GetMembers().OfType<IPropertySymbol>()).ToList();

@@ -119,20 +119,20 @@ namespace MassTransit.Analyzers
 
             await sendEndpoint.Send<SubmitOrder>(new
             {
-                Id = default(Guid),
-                CustomerId = default(string),
-                OrderItems = new[] 
+                Id = NewId.NextGuid(),
+                CustomerId = "Customer",
+                OrderItems = new[]
                 {
                     new
                     {
-                        Id = default(Guid),
+                        Id = NewId.NextGuid(),
                         Product = new
                         {
-                            Name = default(string),
-                            Category = default(string)
+                            Name = "Product",
+                            Category = "Category"
                         },
-                        Quantity = default(int),
-                        Price = default(decimal)
+                        Quantity = 10,
+                        Price = 10.0m
                     }
                 }
             });

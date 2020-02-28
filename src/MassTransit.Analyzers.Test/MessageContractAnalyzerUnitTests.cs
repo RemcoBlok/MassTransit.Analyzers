@@ -647,6 +647,55 @@ namespace ConsoleApplication1
             VerifyCSharpDiagnostic(test, expected);
         }
 
+        [TestMethod]
+        public void WhenTypesAreStructurallyIncompatibleAtDifferentNodesAndNoMissingProperties_ShouldHaveDiagnostic()
+        {
+            var test = Usings + MessageContracts + @"
+namespace ConsoleApplication1
+{
+    class Program
+    {
+        static async Task Main()
+        {
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            await bus.Publish<OrderSubmitted>(new
+            {
+                Id = NewId.NextGuid(),
+                CustomerId = 1,
+                OrderItems = new[]
+                {
+                    new
+                    {
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = 1
+                        },
+                        Quantity = 10,
+                        Price = 10.0
+                    }
+                }
+            });
+        }
+    }
+}
+";
+            var expected = new DiagnosticResult
+            {
+                Id = "MCA0001",
+                Message = "Anonymous type does not map to message contract 'OrderSubmitted'. The following properties of the anonymous type are incompatible: CustomerId, OrderItems.Product.Category, OrderItems.Price",
+                Severity = DiagnosticSeverity.Error,
+                Locations =
+                    new[] {
+                            new DiagnosticResultLocation("Test0.cs", 58, 47)
+                        }
+            };
+
+            VerifyCSharpDiagnostic(test, expected);
+        }
+
 
         [TestMethod]
         public void WhenTypesAreStructurallyCompatibleAndMissingProperty_ShouldHaveDiagnosticAndCodeFix()
@@ -1919,6 +1968,136 @@ namespace ConsoleApplication1
             VerifyCSharpFix(test, fixtest);
         }
 
+
+        [TestMethod]
+        public void WhenTypesAreStructurallyCompatibleWithDunderProperty_ShouldHaveNoDiagnostics()
+        {
+            var test = Usings + MessageContracts + @"
+namespace ConsoleApplication1
+{        
+    class Program
+    {
+        static async Task Main()
+        {
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+
+            await bus.Publish<OrderSubmitted>(new
+            {
+                __TimeToLive = 15000,
+                Id = NewId.NextGuid(),
+                CustomerId = ""Customer"",
+                OrderItems = new[]
+                {
+                    new
+                    {
+                        Id = NewId.NextGuid(),
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
+                    }
+                }
+            });
+        }
+    }
+}
+";
+
+            VerifyCSharpDiagnostic(test);
+        }
+
+        [TestMethod]
+        public void WhenTypesWithVariablesAreStructurallyCompatibleAndNoMissingProperties_ShouldHaveNoDiagnostics()
+        {
+            var test = Usings + MessageContracts + @"
+namespace ConsoleApplication1
+{        
+    class Program
+    {
+        static async Task Main()
+        {
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+            var sendEndpoint = await bus.GetSendEndpoint(null);
+
+            await sendEndpoint.Send<SubmitOrder>(new
+            {
+                Id = InVar.Id,
+                CustomerId = ""Customer"",
+                OrderItems = new[]
+                {
+                    new
+                    {
+                        Id = InVar.Id,
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
+                    }
+                }
+            });
+        }
+    }
+}
+";
+            
+            VerifyCSharpDiagnostic(test);
+        }
+
+        [TestMethod]
+        public void WhenTypesWithVariablesAreStructurallyIncompatibleAndNoMissingProperties_ShouldHaveDiagnostic()
+        {
+            var test = Usings + MessageContracts + @"
+namespace ConsoleApplication1
+{        
+    class Program
+    {
+        static async Task Main()
+        {
+            var bus = Bus.Factory.CreateUsingInMemory(cfg => { });
+            var sendEndpoint = await bus.GetSendEndpoint(null);
+
+            await sendEndpoint.Send<SubmitOrder>(new
+            {
+                Id = InVar.Timestamp,
+                CustomerId = ""Customer"",
+                OrderItems = new[]
+                {
+                    new
+                    {
+                        Id = InVar.Id,
+                        Product = new
+                        {
+                            Name = ""Product"",
+                            Category = ""Category""
+                        },
+                        Quantity = 10,
+                        Price = 10.0m
+                    }
+                }
+            });
+        }
+    }
+}
+";
+            var expected = new DiagnosticResult
+            {
+                Id = "MCA0001",
+                Message = "Anonymous type does not map to message contract 'SubmitOrder'. The following properties of the anonymous type are incompatible: Id",
+                Severity = DiagnosticSeverity.Error,
+                Locations =
+                    new[] {
+                            new DiagnosticResultLocation("Test0.cs", 59, 50)
+                        }
+            };
+
+            VerifyCSharpDiagnostic(test, expected);
+        }
 
         protected override CodeFixProvider GetCSharpCodeFixProvider()
         {
